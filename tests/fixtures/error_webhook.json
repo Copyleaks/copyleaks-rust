@@ -1,0 +1,10 @@
+{
+  "status": 1,
+  "error": {
+    "type": "invalid_request_error",
+    "id": "missing_parameter",
+    "code": 1,
+    "message": "Bad request. One or several required parameters are missing or incorrect."
+  },
+  "developerPayload": "Custom developer payload"
+}

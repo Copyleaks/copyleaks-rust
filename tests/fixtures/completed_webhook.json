@@ -1,0 +1,140 @@
+{
+  "status": 0,
+  "developerPayload": "Custom developer payload",
+  "scannedDocument": {
+    "scanId": "string",
+    "totalWords": 0,
+    "totalExcluded": 0,
+    "credits": 0,
+    "creationTime": "string",
+    "metadata": {
+      "finalUrl": "string",
+      "canonicalUrl": "string",
+      "author": "string",
+      "organization": "string",
+      "filename": "string",
+      "publishDate": "string",
+      "creationDate": "string",
+      "lastModificationDate": "string"
+    }
+  },
+  "results": {
+    "internet": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "url": "string",
+        "metadata": {
+          "finalUrl": "string",
+          "canonicalUrl": "string",
+          "author": "string",
+          "organization": "string",
+          "filename": "string",
+          "publishDate": "string",
+          "creationDate": "string",
+          "lastModificationDate": "string"
+        }
+      }
+    ],
+    "database": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "scanId": "string",
+        "metadata": {
+          "finalUrl": "string",
+          "canonicalUrl": "string",
+          "author": "string",
+          "organization": "string",
+          "filename": "string",
+          "publishDate": "string",
+          "creationDate": "string",
+          "lastModificationDate": "string"
+        }
+      }
+    ],
+    "batch": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "scanId": "string",
+        "metadata": {
+          "finalUrl": "string",
+          "canonicalUrl": "string",
+          "author": "string",
+          "organization": "string",
+          "filename": "string",
+          "publishDate": "string",
+          "creationDate": "string",
+          "lastModificationDate": "string"
+        }
+      }
+    ],
+    "repositories": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "repositoryId": "string",
+        "scanId": "string",
+        "metadata": {
+          "finalUrl": "string",
+          "canonicalUrl": "string",
+          "author": "string",
+          "organization": "string",
+          "filename": "string",
+          "publishDate": "string",
+          "creationDate": "string",
+          "lastModificationDate": "string",
+          "submittedBy": "string"
+        }
+      }
+    ],
+    "internalAIData": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "identicalWords": 0,
+        "similarWords": 0,
+        "paraphrasedWords": 0,
+        "totalWords": 0
+      }
+    ],
+    "score": {
+      "identicalWords": 0,
+      "minorChangedWords": 0,
+      "relatedMeaningWords": 0,
+      "aggregatedScore": 0
+    }
+  },
+  "referencesValidation": {
+    "summary": {
+      "total": 0,
+      "academic": 0,
+      "academicValidated": 0,
+      "nonAcademicValidated": 0
+    }
+  },
+  "notifications": {
+    "alerts": [
+      {
+        "category": 2,
+        "code": "suspected-ai-text",
+        "title": "Suspected Cheating: AI Text Detected",
+        "message": "We are unable to verify that the text was written by a human.",
+        "helpLink": "https://docs.copyleaks.com",
+        "severity": 4,
+        "additionalData": "{\"modelVersion\": \"v11.0\", \"results\": [{\"classification\": 2, \"probability\": 0.7316979, \"matches\": [{\"text\": {\"chars\": {\"starts\": [0], \"lengths\": [554]}, \"words\": {\"starts\": [0], \"lengths\": [73]}}}]}], \"summary\": {\"human\": 0.0, \"ai\": 1.0}, \"scannedDocument\": {\"scanId\": \"scan-id\", \"totalWords\": 73, \"totalExcluded\": 0, \"actualCredits\": 1, \"expectedCredits\": 1, \"creationTime\": \"2025-08-10T08:33:05.22225Z\"}, \"explain\": {\"patterns\": {\"statistics\": {\"aiCount\": [1.2066389, 9.673915, 34.41001], \"humanCount\": [0.18481831, 0.13894142, 0.33555666], \"proportion\": [6.5287843, 69.625854, 102.54607], \"source\": [1, 1, 1]}, \"text\": {\"chars\": {\"starts\": [10, 96, 136], \"lengths\": [25, 33, 33]}, \"words\": {\"starts\": [1, 12, 17], \"lengths\": [4, 4, 5]}}}}}"
+      }
+    ]
+  }
+}

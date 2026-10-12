@@ -1,0 +1,21 @@
+{
+  "completed": true,
+  "developerPayload": "This is my payload",
+  "tasks": [
+    {
+      "endpoint": "https://yourserver.com/export/export-id/results/my-result-id",
+      "httpStatusCode": 200,
+      "isHealthy": true
+    },
+    {
+      "endpoint": "https://yourserver.com/export/export-id/pdf-report",
+      "httpStatusCode": 200,
+      "isHealthy": true
+    },
+    {
+      "endpoint": "https://yourserver.com/export/export-id/crawled-version",
+      "httpStatusCode": 200,
+      "isHealthy": true
+    }
+  ]
+}

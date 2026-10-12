@@ -1,0 +1,82 @@
+{
+  "score": 0,
+  "developerPayload": "string",
+  "internet": [
+    {
+      "id": "string",
+      "title": "string",
+      "introduction": "string",
+      "matchedWords": 0,
+      "url": "string",
+      "metadata": {
+        "finalUrl": "string",
+        "canonicalUrl": "string",
+        "author": "string",
+        "organization": "string",
+        "filename": "string",
+        "publishDate": "string",
+        "creationDate": "string",
+        "lastModificationDate": "string"
+      }
+    }
+  ],
+  "database": [
+    {
+      "id": "string",
+      "title": "string",
+      "introduction": "string",
+      "matchedWords": 0,
+      "scanId": "string",
+      "metadata": {
+        "finalUrl": "string",
+        "canonicalUrl": "string",
+        "author": "string",
+        "organization": "string",
+        "filename": "string",
+        "publishDate": "string",
+        "creationDate": "string",
+        "lastModificationDate": "string"
+      }
+    }
+  ],
+  "batch": [
+    {
+      "id": "string",
+      "title": "string",
+      "introduction": "string",
+      "matchedWords": 0,
+      "scanId": "string",
+      "metadata": {
+        "finalUrl": "string",
+        "canonicalUrl": "string",
+        "author": "string",
+        "organization": "string",
+        "filename": "string",
+        "publishDate": "string",
+        "creationDate": "string",
+        "lastModificationDate": "string"
+      }
+    }
+  ],
+  "repositories": [
+    {
+      "id": "string",
+      "title": "string",
+      "introduction": "string",
+      "matchedWords": 0,
+      "repositoryId": "string",
+      "scanId": "string",
+      "metadata": {
+        "finalUrl": "string",
+        "canonicalUrl": "string",
+        "author": "string",
+        "organization": "string",
+        "filename": "string",
+        "publishDate": "string",
+        "creationDate": "string",
+        "lastModificationDate": "string",
+        "submittedBy": "string"
+      }
+    }
+  ]
+}

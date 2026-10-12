@@ -1,0 +1,51 @@
+{
+  "model": "ai-image-1-ultra",
+  "result": {
+    "starts": [
+      0,
+      393216
+    ],
+    "lengths": [
+      196608,
+      393216
+    ]
+  },
+  "summary": {
+    "human": 0.25,
+    "ai": 0.75
+  },
+  "isAiDetected": true,
+  "imageInfo": {
+    "shape": {
+      "height": 1024,
+      "width": 768
+    },
+    "metadata": {
+      "issuedTime": "2025-07-23T12:44:05",
+      "issuedBy": "OpenAI",
+      "appOrDeviceUsed": "OpenAI-API",
+      "contentSummary": "Created using generative AI"
+    }
+  },
+  "detectedObjects": [
+    {
+      "object": "face",
+      "mask": {
+        "starts": [
+          1024,
+          3072
+        ],
+        "lengths": [
+          512,
+          256
+        ]
+      }
+    }
+  ],
+  "scannedDocument": {
+    "scanId": "my-scan-id-1",
+    "actualCredits": 1,
+    "expectedCredits": 1,
+    "creationTime": "2023-01-10T10:07:58.9459512Z"
+  }
+}
