@@ -1,4 +1,4 @@
-//! The `x-tenant` header (BAC-6326 parity): sent on every endpoint when a tenant is set on the
+//! The `x-tenant` header: sent on every endpoint when a tenant is set on the
 //! client, overridden per call with `with_tenant`, and absent when unset.
 
 mod common;

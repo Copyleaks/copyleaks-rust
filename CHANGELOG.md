@@ -6,7 +6,7 @@ All notable changes to this crate are documented here. The format follows
 
 ## [1.0.0] - 2026-10-12
 
-First release of the Copyleaks Rust SDK, with the same API coverage as the Copyleaks Python SDK.
+First release of the Copyleaks Rust SDK.
 
 ### Added
 
@@ -22,8 +22,7 @@ First release of the Copyleaks Rust SDK, with the same API coverage as the Copyl
 - Plagiarism Checker: submit file, submit OCR, submit URL, export, start, delete, resend webhook,
   credits balance and usage history (CSV).
 - Scan properties `aiSourceMatch` (`AiSourceMatch`), `displayLanguage`
-  (`ScanProperties::display_language`) and `pdf.reportVersion` (`Pdf::report_version`), as in the
-  Python SDK (BAC-5378). The display language and the report version are checked against the
+  (`ScanProperties::display_language`) and `pdf.reportVersion` (`Pdf::report_version`). The display language and the report version are checked against the
   values the server accepts, case-sensitively.
 - Release notes, supported file types and OCR languages.
 - Typed webhook payloads (completed, error, credits checked, indexed, new result, export
