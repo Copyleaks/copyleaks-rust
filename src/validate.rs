@@ -90,6 +90,17 @@ pub(crate) fn range(value: u32, name: &str, min: u32, max: u32) -> Result<()> {
     Ok(())
 }
 
+/// Checks that a value is one of `allowed`, compared case-sensitively as the server compares it.
+pub(crate) fn one_of(value: &str, name: &str, allowed: &[&str]) -> Result<()> {
+    if !allowed.contains(&value) {
+        return Err(Error::Validation(format!(
+            "{name} must be one of {}, got {value:?}",
+            allowed.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 /// Checks that a list has `min..=max` items.
 pub(crate) fn count(len: usize, name: &str, min: usize, max: usize) -> Result<()> {
     if !(min..=max).contains(&len) {
@@ -197,6 +208,14 @@ mod tests {
         assert!(length("😀", "text", 2, 2).is_ok());
         assert!(length("é", "text", 1, 1).is_ok());
         assert!(length("😀", "text", 1, 1).is_err());
+    }
+
+    #[test]
+    fn one_of_is_case_sensitive() {
+        assert!(one_of("v1", "reportVersion", &["v1", "latest"]).is_ok());
+        assert!(one_of("V1", "reportVersion", &["v1", "latest"]).is_err());
+        assert!(one_of("", "reportVersion", &["v1", "latest"]).is_err());
+        assert!(one_of(" v1", "reportVersion", &["v1", "latest"]).is_err());
     }
 
     #[test]

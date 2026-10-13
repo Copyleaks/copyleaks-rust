@@ -5,10 +5,10 @@ mod common;
 
 use common::fixture;
 use copyleaks::plagiarism::{
-    AiGeneratedText, Author, CopyleaksDb, CrossLanguages, CustomMetadata, DomainsMode, Exclude,
-    ExcludeCode, Filters, Indexing, IndexingRepository, MaskingPolicy, Pdf, PdfColors, PdfVersion,
-    ScanMethodAlgorithm, ScanProperties, Scanning, ScanningExclude, SearchRepository,
-    StartResponse, SubmitAction, SubmitWebhooks,
+    AiGeneratedText, AiSourceMatch, Author, CopyleaksDb, CrossLanguages, CustomMetadata,
+    DomainsMode, Exclude, ExcludeCode, Filters, Indexing, IndexingRepository, MaskingPolicy, Pdf,
+    PdfColors, PdfVersion, ScanMethodAlgorithm, ScanProperties, Scanning, ScanningExclude,
+    SearchRepository, StartResponse, SubmitAction, SubmitWebhooks,
 };
 use copyleaks::webhooks::{
     self, alert_codes, Alert, CompletedWebhook, CreditsCheckedWebhook, ErrorWebhook,
@@ -416,6 +416,7 @@ fn scan_properties_use_the_api_field_names() {
                 .large_logo("bG9nbw==")
                 .rtl(false)
                 .version(PdfVersion::V2)
+                .report_version("v3")
                 .colors(
                     PdfColors::default()
                         .main_strip("#000000")
@@ -425,10 +426,12 @@ fn scan_properties_use_the_api_field_names() {
                         .related_meaning("#FDD0A3"),
                 ),
         )
+        .display_language("es")
         .sensitivity_level(3)
         .cheat_detection(true)
         .scan_method_algorithm(ScanMethodAlgorithm::MaximumResults)
         .ai_generated_text(AiGeneratedText::default().detect(true))
+        .ai_source_match(AiSourceMatch::default().enable(true))
         .custom_metadata(vec![CustomMetadata::new("course", "cs-101")]);
 
     let expected: Value = json!({
@@ -480,6 +483,7 @@ fn scan_properties_use_the_api_field_names() {
             "largeLogo": "bG9nbw==",
             "rtl": false,
             "version": 2,
+            "reportVersion": "v3",
             "colors": {
                 "mainStrip": "#000000",
                 "titles": "#040F21",
@@ -488,14 +492,56 @@ fn scan_properties_use_the_api_field_names() {
                 "relatedMeaning": "#FDD0A3"
             }
         },
+        "displayLanguage": "es",
         "sensitivityLevel": 3,
         "cheatDetection": true,
         "scanMethodAlgorithm": 1,
         "aiGeneratedText": { "detect": true },
+        "aiSourceMatch": { "enable": true },
         "customMetadata": [{ "key": "course", "value": "cs-101" }]
     });
     assert_eq!(
         serde_json::to_value(properties).expect("serialize"),
         expected
+    );
+}
+
+#[test]
+fn ai_source_match_display_language_and_report_version_json() {
+    let webhook = "https://example.com/webhook/{STATUS}";
+
+    // Set: the exact API field names and values.
+    let properties = ScanProperties::new(webhook)
+        .pdf(Pdf::default().create(true).report_version("latest"))
+        .display_language("de")
+        .ai_source_match(AiSourceMatch::default().enable(true));
+    assert_eq!(
+        serde_json::to_value(properties).expect("serialize"),
+        json!({
+            "webhooks": { "status": webhook },
+            "pdf": { "create": true, "reportVersion": "latest" },
+            "displayLanguage": "de",
+            "aiSourceMatch": { "enable": true }
+        })
+    );
+
+    // `enable: false` is sent, not dropped.
+    assert_eq!(
+        serde_json::to_value(AiSourceMatch::default().enable(false)).expect("serialize"),
+        json!({ "enable": false })
+    );
+
+    // Unset: left out, so the server defaults apply.
+    let properties = ScanProperties::new(webhook).pdf(Pdf::default().create(true));
+    assert_eq!(
+        serde_json::to_value(properties).expect("serialize"),
+        json!({
+            "webhooks": { "status": webhook },
+            "pdf": { "create": true }
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(AiSourceMatch::default()).expect("serialize"),
+        json!({})
     );
 }

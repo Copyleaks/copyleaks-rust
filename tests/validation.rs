@@ -9,7 +9,7 @@ use copyleaks::ai_text::AiTextDetectionRequest;
 use copyleaks::grammar::{GrammarCheckRequest, ScoreWeights};
 use copyleaks::moderation::{TextModerationLabel, TextModerationRequest};
 use copyleaks::plagiarism::{
-    Delete, DeleteScan, Export, ExportResult, ExportTarget, FileSubmission, ScanProperties,
+    Delete, DeleteScan, Export, ExportResult, ExportTarget, FileSubmission, Pdf, ScanProperties,
     Scanning, ScanningExclude, Start, UrlSubmission,
 };
 use copyleaks::{Client, Error, Result};
@@ -157,6 +157,55 @@ async fn exclude_id_pattern_is_1_to_36_characters() {
         .submit_file(&token(), "scan-1", &with_id_pattern(&"😀".repeat(18)))
         .await
         .expect("a 36-unit idPattern");
+}
+
+fn with_display_language(language: &str) -> FileSubmission {
+    FileSubmission::from_bytes("text", "a.txt", properties().display_language(language))
+}
+
+fn with_report_version(version: &str) -> FileSubmission {
+    let pdf = Pdf::default().create(true).report_version(version);
+    FileSubmission::from_bytes("text", "a.txt", properties().pdf(pdf))
+}
+
+#[tokio::test]
+async fn display_language_and_report_version_take_only_the_server_values() {
+    // The server compares both case-sensitively.
+    let server = silent_server().await;
+    let rejecting = client(&server);
+    for language in ["", "EN", "En", "en-US", " en", "xx", "he"] {
+        assert_validation(
+            rejecting
+                .submit_file(&token(), "scan-1", &with_display_language(language))
+                .await,
+            language,
+        );
+    }
+    for version in ["", "V3", "Latest", "v4", "3", "v3 "] {
+        assert_validation(
+            rejecting
+                .submit_file(&token(), "scan-1", &with_report_version(version))
+                .await,
+            version,
+        );
+    }
+
+    let languages = ["en", "es", "pt", "fr", "de", "it"];
+    let versions = ["v1", "v2", "v3", "latest"];
+    let server = accepting_server((languages.len() + versions.len()) as u64).await;
+    let accepting = client(&server);
+    for language in languages {
+        accepting
+            .submit_file(&token(), "scan-1", &with_display_language(language))
+            .await
+            .expect(language);
+    }
+    for version in versions {
+        accepting
+            .submit_file(&token(), "scan-1", &with_report_version(version))
+            .await
+            .expect(version);
+    }
 }
 
 #[tokio::test]

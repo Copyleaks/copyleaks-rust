@@ -21,6 +21,10 @@ First release of the Copyleaks Rust SDK, with the same API coverage as the Copyl
   (check and correction types) and Text Moderation, with typed responses.
 - Plagiarism Checker: submit file, submit OCR, submit URL, export, start, delete, resend webhook,
   credits balance and usage history (CSV).
+- Scan properties `aiSourceMatch` (`AiSourceMatch`), `displayLanguage`
+  (`ScanProperties::display_language`) and `pdf.reportVersion` (`Pdf::report_version`), as in the
+  Python SDK (BAC-5378). The display language and the report version are checked against the
+  values the server accepts, case-sensitively.
 - Release notes, supported file types and OCR languages.
 - Typed webhook payloads (completed, error, credits checked, indexed, new result, export
   completed), `webhooks::parse`, and the AI Text Detection result of the completed webhook's

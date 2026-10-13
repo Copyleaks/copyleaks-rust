@@ -182,6 +182,11 @@ pub struct ScanProperties {
     /// PDF report settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf: Option<Pdf>,
+    /// The language of the scan's PDF report: `en`, `es`, `pt`, `fr`, `de` or `it`. Lowercase
+    /// and case-sensitive. It is stored with the scan, so it also applies to a PDF report
+    /// requested later. Use `None` for the server default, `en`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_language: Option<String>,
     /// Plagiarism sensitivity, from 1 (faster) to 5 (slower, finds the smallest matches).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitivity_level: Option<u8>,
@@ -197,6 +202,10 @@ pub struct ScanProperties {
     /// [`CompletedWebhook::ai_detection_result`](crate::webhooks::CompletedWebhook::ai_detection_result).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_generated_text: Option<AiGeneratedText>,
+    /// AI Source Match settings: find online sources suspected of containing AI-generated text.
+    /// Server default: off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_source_match: Option<AiSourceMatch>,
     /// Custom properties attached to the document in a Private Cloud Hub.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_metadata: Option<Vec<CustomMetadata>>,
@@ -237,6 +246,16 @@ impl ScanProperties {
         if let Some(level) = self.sensitivity_level {
             validate::range(u32::from(level), "properties.sensitivityLevel", 1, 5)?;
         }
+        if let Some(language) = &self.display_language {
+            validate::one_of(language, "properties.displayLanguage", DISPLAY_LANGUAGES)?;
+        }
+        if let Some(version) = self
+            .pdf
+            .as_ref()
+            .and_then(|pdf| pdf.report_version.as_deref())
+        {
+            validate::one_of(version, "properties.pdf.reportVersion", REPORT_VERSIONS)?;
+        }
         let id_pattern = self
             .scanning
             .as_ref()
@@ -260,12 +279,20 @@ setters!(ScanProperties {
     indexing: Indexing,
     exclude: Exclude,
     pdf: Pdf,
+    display_language: String,
     sensitivity_level: u8,
     cheat_detection: bool,
     scan_method_algorithm: ScanMethodAlgorithm,
     ai_generated_text: AiGeneratedText,
+    ai_source_match: AiSourceMatch,
     custom_metadata: Vec<CustomMetadata>,
 });
+
+/// The values the server accepts for `properties.displayLanguage`.
+const DISPLAY_LANGUAGES: &[&str] = &["en", "es", "pt", "fr", "de", "it"];
+
+/// The values the server accepts for `properties.pdf.reportVersion`.
+const REPORT_VERSIONS: &[&str] = &["v1", "v2", "v3", "latest"];
 
 /// A list of HTTP headers, each a `(name, value)` pair. Serialized as `[["name", "value"], ...]`.
 pub type Headers = Vec<(String, String)>;
@@ -647,9 +674,15 @@ pub struct Pdf {
     /// Align the report text from right to left.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rtl: Option<bool>,
-    /// The report version. Deprecated by the API in favor of `reportVersion`.
+    /// The report version. Deprecated by the API in favor of
+    /// [`Pdf::report_version`](field@Pdf::report_version), which overrides it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<PdfVersion>,
+    /// The report version: `v1`, `v2`, `v3` or `latest`. Lowercase and case-sensitive. Overrides
+    /// [`Pdf::version`](field@Pdf::version). When neither is set, accounts created before
+    /// 2025-05-15 get `v1` and newer accounts get `latest`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub report_version: Option<String>,
     /// The report colors.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub colors: Option<PdfColors>,
@@ -661,6 +694,7 @@ setters!(Pdf {
     large_logo: String,
     rtl: bool,
     version: PdfVersion,
+    report_version: String,
     colors: PdfColors,
 });
 
@@ -702,6 +736,17 @@ pub struct AiGeneratedText {
 }
 
 setters!(AiGeneratedText { detect: bool });
+
+/// AI Source Match settings for a plagiarism scan (`properties.aiSourceMatch`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct AiSourceMatch {
+    /// Find online sources suspected of containing AI-generated text. Applies only to documents
+    /// detected as English. Server default: `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable: Option<bool>,
+}
+
+setters!(AiSourceMatch { enable: bool });
 
 /// A custom property attached to the document in a Private Cloud Hub.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
