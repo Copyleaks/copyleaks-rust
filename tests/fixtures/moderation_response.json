@@ -1,0 +1,37 @@
+{
+  "modelVersion": "v1",
+  "moderations": {
+    "text": {
+      "chars": {
+        "labels": [
+          1
+        ],
+        "starts": [
+          15
+        ],
+        "lengths": [
+          4
+        ]
+      }
+    }
+  },
+  "legend": [
+    {
+      "index": 0,
+      "id": "toxic-v1"
+    },
+    {
+      "index": 1,
+      "id": "profanity-v1"
+    },
+    {
+      "index": 2,
+      "id": "hate-speech-v1"
+    }
+  ],
+  "scannedDocument": {
+    "scanId": "scan-id",
+    "totalWords": 86,
+    "creationTime": "2025-08-06T08:05:20.6787519Z"
+  }
+}

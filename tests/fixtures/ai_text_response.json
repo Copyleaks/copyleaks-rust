@@ -1,0 +1,95 @@
+{
+  "modelVersion": "v11.0",
+  "results": [
+    {
+      "classification": 2,
+      "probability": 0.7316979,
+      "matches": [
+        {
+          "text": {
+            "chars": {
+              "starts": [
+                0
+              ],
+              "lengths": [
+                554
+              ]
+            },
+            "words": {
+              "starts": [
+                0
+              ],
+              "lengths": [
+                73
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "human": 0.0,
+    "ai": 1.0
+  },
+  "scannedDocument": {
+    "scanId": "scan-id",
+    "totalWords": 73,
+    "totalExcluded": 0,
+    "actualCredits": 1,
+    "expectedCredits": 1,
+    "creationTime": "2025-08-10T08:33:05.22225Z"
+  },
+  "explain": {
+    "patterns": {
+      "statistics": {
+        "aiCount": [
+          1.2066389,
+          9.673915,
+          34.41001
+        ],
+        "humanCount": [
+          0.18481831,
+          0.13894142,
+          0.33555666
+        ],
+        "proportion": [
+          6.5287843,
+          69.625854,
+          102.54607
+        ],
+        "source": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text": {
+        "chars": {
+          "starts": [
+            10,
+            96,
+            136
+          ],
+          "lengths": [
+            25,
+            33,
+            33
+          ]
+        },
+        "words": {
+          "starts": [
+            1,
+            12,
+            17
+          ],
+          "lengths": [
+            4,
+            4,
+            5
+          ]
+        }
+      }
+    }
+  }
+}

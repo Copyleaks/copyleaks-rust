@@ -1,0 +1,106 @@
+//! The error type of the SDK.
+
+/// A `Result` whose error type defaults to [`Error`].
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// How much of a response body an error message shows, in bytes.
+const MAX_DISPLAY_BODY: usize = 512;
+
+/// Everything that can go wrong when calling the Copyleaks API.
+///
+/// The variants of an error status keep the response body (up to 1 MiB), where the server
+/// usually explains the error. Error messages show at most its first 512 bytes, and never
+/// contain the login token or the API key.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// The server rejected the request with a status code that has no dedicated variant.
+    #[error("Copyleaks API error: HTTP {status} from {endpoint}{}", detail(.body))]
+    Api {
+        /// The HTTP status code.
+        status: u16,
+        /// The response body as text, up to 1 MiB. Often a JSON error object from the server.
+        body: String,
+        /// The HTTP method and path that failed, for example `PUT /v3/scans/submit/file/my-scan`.
+        endpoint: String,
+    },
+    /// HTTP 401: the login token or the API key was rejected.
+    #[error("unauthorized (HTTP 401) from {endpoint}{}", detail(.body))]
+    Unauthorized {
+        /// The response body as text, up to 1 MiB.
+        body: String,
+        /// The HTTP method and path that failed.
+        endpoint: String,
+    },
+    /// HTTP 429: too many requests. Wait before calling again.
+    #[error("rate limited (HTTP 429) from {endpoint}: too many requests{}", detail(.body))]
+    RateLimited {
+        /// The response body as text, up to 1 MiB.
+        body: String,
+        /// The HTTP method and path that failed.
+        endpoint: String,
+    },
+    /// HTTP 503: Copyleaks is under maintenance. Retry with exponential backoff.
+    #[error("under maintenance (HTTP 503) at {endpoint}; retry later{}", detail(.body))]
+    UnderMaintenance {
+        /// The response body as text, up to 1 MiB.
+        body: String,
+        /// The HTTP method and path that failed.
+        endpoint: String,
+    },
+    /// The login token has expired or expires within 5 minutes. Log in again.
+    /// Checked locally before every authenticated call, so no request is sent.
+    #[error("the login token has expired or expires within 5 minutes; log in again")]
+    TokenExpired,
+    /// A successful response body is larger than the SDK reads: 16 MiB for JSON and 64 MiB for
+    /// the usage history CSV. The body is not truncated; the call fails.
+    #[error("the response of {endpoint} is larger than {limit} bytes; the call failed")]
+    ResponseTooLarge {
+        /// The HTTP method and path of the call.
+        endpoint: String,
+        /// The largest body accepted, in bytes.
+        limit: usize,
+    },
+    /// The request could not be sent or the response could not be read.
+    #[error("HTTP transport error: {0}")]
+    Http(#[from] reqwest::Error),
+    /// A JSON body could not be decoded.
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+    /// The request failed a client-side check and was not sent.
+    #[error("invalid request: {0}")]
+    Validation(String),
+}
+
+/// `": <body>"` with the body trimmed and cut to 512 bytes, or nothing for an empty body.
+fn detail(body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        return String::new();
+    }
+    if body.len() <= MAX_DISPLAY_BODY {
+        return format!(": {body}");
+    }
+    let mut cut = MAX_DISPLAY_BODY;
+    while !body.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!(": {}...", &body[..cut])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::detail;
+
+    #[test]
+    fn detail_trims_and_cuts_the_body() {
+        assert_eq!(detail(""), "");
+        assert_eq!(detail("  \n"), "");
+        assert_eq!(detail(" bad scan id "), ": bad scan id");
+        let long = "a".repeat(600);
+        assert_eq!(detail(&long), format!(": {}...", "a".repeat(512)));
+        // A multi-byte character across the cut is not split.
+        let multi = format!("{}é{}", "a".repeat(511), "b".repeat(100));
+        assert_eq!(detail(&multi), format!(": {}...", "a".repeat(511)));
+    }
+}

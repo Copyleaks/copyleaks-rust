@@ -1,0 +1,62 @@
+{
+  "score": {
+    "corrections": {
+      "grammarCorrectionsCount": 2,
+      "grammarCorrectionsScore": 87,
+      "grammarScoreWeight": 1.0,
+      "mechanicsCorrectionsCount": 9,
+      "mechanicsCorrectionsScore": 38,
+      "mechanicsScoreWeight": 1.0,
+      "sentenceStructureCorrectionsCount": 0,
+      "sentenceStructureCorrectionsScore": 100,
+      "sentenceStructureScoreWeight": 1.0,
+      "wordChoiceCorrectionsCount": 1,
+      "wordChoiceCorrectionsScore": 93,
+      "wordChoiceScoreWeight": 1.0,
+      "overallScore": 79
+    },
+    "readability": {
+      "score": 59,
+      "readabilityLevel": 5,
+      "readabilityLevelText": "10th to 12th Grader",
+      "readabilityLevelDescription": "Fairly difficult to read"
+    },
+    "statistics": {
+      "sentenceCount": 5,
+      "averageSentenceLength": 12.2,
+      "averageWordLength": 5.5,
+      "readingTimeSeconds": 16.0,
+      "speakingTimeSeconds": 28.2
+    }
+  },
+  "corrections": {
+    "text": {
+      "chars": {
+        "types": [
+          5,
+          18
+        ],
+        "starts": [
+          13,
+          22
+        ],
+        "lengths": [
+          2,
+          10
+        ],
+        "operationTexts": [
+          "an ",
+          "plagiarism "
+        ]
+      }
+    }
+  },
+  "scannedDocument": {
+    "scanId": "{scanId}",
+    "totalWords": 61,
+    "totalExcluded": 0,
+    "actualCredits": 1,
+    "expectedCredits": 1,
+    "creationTime": "2025-08-11T06:46:01.2886658Z"
+  }
+}
