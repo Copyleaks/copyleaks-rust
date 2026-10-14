@@ -80,7 +80,7 @@ async fn http2_is_available() {
     Mock::given(method("GET"))
         .and(path("/v3/miscellaneous/allowed-cross-languages"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "documentLanguages": ["en"], "resultLanguages": ["fr"]
+            "documentLanguages": { "english": "en" }, "resultLanguages": { "french": "fr" }
         })))
         .expect(1)
         .mount(&server)
@@ -95,7 +95,7 @@ async fn http2_is_available() {
         .expect("client");
 
     let languages = client.allowed_cross_languages().await.expect("HTTP/2 call");
-    assert_eq!(languages.result_languages, ["fr"]);
+    assert_eq!(languages.result_codes(), ["fr"]);
 }
 
 /// Serves HTTP/1.1 on a local port, keeping connections open. Each response sends its headers,

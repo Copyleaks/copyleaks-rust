@@ -267,7 +267,7 @@ mod snippets {
         let cross = client.allowed_cross_languages().await?;
         let ocr = client.ocr_supported_languages().await?;
         println!("{} / {} file types", plagiarism_types.textual.len(), ai_types.supported_ai_file_types.len());
-        println!("cross-language results in {:?}; OCR in {} languages", cross.result_languages, ocr.len());
+        println!("cross-language results in {:?}; OCR in {} languages", cross.result_codes(), ocr.len());
 
         // Needs the Admin or Super Admin role in the repository.
         let info = client.repository_info(&token, "my-repository-id").await?;

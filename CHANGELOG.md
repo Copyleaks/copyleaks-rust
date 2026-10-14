@@ -22,9 +22,9 @@ releases can add API fields without breaking your code. Read the upgrade notes b
 - AI Image Detection options `mask_type` (`MaskType::Binary`, `Heatmap` or `None`) and
   `object_detection`, with the response fields `AiImageMask::labels` and
   `AiImageDetectionResponse::detected_objects`.
-- `Client::ai_text_detection_credits`, `Client::allowed_cross_languages`,
-  `Client::supported_ai_text_detection_file_types`, and `Client::repository_info` for Private
-  Cloud Hub repositories (module `repositories`).
+- `Client::ai_text_detection_credits`, `Client::allowed_cross_languages` (each language with its
+  name and code), `Client::supported_ai_text_detection_file_types`, and
+  `Client::repository_info` for Private Cloud Hub repositories (module `repositories`).
 - Scan properties: `sensitive_data_protection`, `writing_feedback` (Grammar Checker in a scan),
   `overview` (Gen-AI Overview), `internal_ai_source_match`, `references` (Citation Checker),
   `scan_time_zone`, `course`, `assignment`, `institution`, `AiGeneratedText::sensitivity` and

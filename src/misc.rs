@@ -1,7 +1,9 @@
 //! Public reference data: release notes, supported file types, OCR languages and cross-language
 //! pairs. These calls need no login.
 
-use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::de;
 
@@ -53,16 +55,77 @@ pub struct SupportedAiTextFileTypes {
 }
 
 /// The languages of cross-language plagiarism detection, from
-/// [`Client::allowed_cross_languages`](crate::Client::allowed_cross_languages), as ISO 639-1
-/// codes. Use them in [`CrossLanguages`](crate::plagiarism::CrossLanguages).
+/// [`Client::allowed_cross_languages`](crate::Client::allowed_cross_languages). Use the codes in
+/// [`CrossLanguages`](crate::plagiarism::CrossLanguages).
+///
+/// The server sends each list as an object from language name to ISO 639-1 code, for example
+/// `{"english": "en"}`; a plain list of codes is accepted too.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AllowedCrossLanguages {
     /// The languages a scanned document can be in.
-    #[serde(default, deserialize_with = "de::null_as_default")]
-    pub document_languages: Vec<String>,
+    #[serde(default, deserialize_with = "languages")]
+    pub document_languages: Vec<CrossLanguage>,
     /// The languages results can be found in.
-    #[serde(default, deserialize_with = "de::null_as_default")]
-    pub result_languages: Vec<String>,
+    #[serde(default, deserialize_with = "languages")]
+    pub result_languages: Vec<CrossLanguage>,
+}
+
+impl AllowedCrossLanguages {
+    /// The codes of [`document_languages`](field@AllowedCrossLanguages::document_languages).
+    pub fn document_codes(&self) -> Vec<&str> {
+        self.document_languages
+            .iter()
+            .map(|language| language.code.as_str())
+            .collect()
+    }
+
+    /// The codes of [`result_languages`](field@AllowedCrossLanguages::result_languages).
+    pub fn result_codes(&self) -> Vec<&str> {
+        self.result_languages
+            .iter()
+            .map(|language| language.code.as_str())
+            .collect()
+    }
+}
+
+/// A language of cross-language plagiarism detection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct CrossLanguage {
+    /// The language name, for example `english`, when the server sends it.
+    pub name: Option<String>,
+    /// The ISO 639-1 code, for example `en`.
+    pub code: String,
+}
+
+/// Reads a list of languages sent as `{"name": "code", ...}` or as `["code", ...]`. A missing or
+/// `null` list is empty.
+fn languages<'de, D>(deserializer: D) -> Result<Vec<CrossLanguage>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Languages {
+        ByName(BTreeMap<String, String>),
+        Codes(Vec<Option<String>>),
+    }
+
+    Ok(match Option::<Languages>::deserialize(deserializer)? {
+        Some(Languages::ByName(map)) => map
+            .into_iter()
+            .map(|(name, code)| CrossLanguage {
+                name: Some(name),
+                code,
+            })
+            .collect(),
+        Some(Languages::Codes(codes)) => codes
+            .into_iter()
+            .flatten()
+            .map(|code| CrossLanguage { name: None, code })
+            .collect(),
+        None => Vec::new(),
+    })
 }

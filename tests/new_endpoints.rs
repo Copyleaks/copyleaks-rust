@@ -372,11 +372,12 @@ async fn ai_text_detection_credits() {
 
 #[tokio::test]
 async fn allowed_cross_languages_is_public() {
+    // The server sends each list as an object from language name to code.
     let server = MockServer::start().await;
     public("GET", "/v3/miscellaneous/allowed-cross-languages")
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "documentLanguages": ["da", "nl", "en"],
-            "resultLanguages": ["sq", "bg", "vi"]
+            "documentLanguages": { "danish": "da", "dutch": "nl", "english": "en" },
+            "resultLanguages": { "albanian": "sq", "vietnamese": "vi" }
         })))
         .expect(1)
         .mount(&server)
@@ -386,8 +387,24 @@ async fn allowed_cross_languages_is_public() {
         .allowed_cross_languages()
         .await
         .expect("cross languages");
-    assert_eq!(languages.document_languages, ["da", "nl", "en"]);
-    assert_eq!(languages.result_languages, ["sq", "bg", "vi"]);
+    assert_eq!(languages.document_codes(), ["da", "nl", "en"]);
+    assert_eq!(languages.result_codes(), ["sq", "vi"]);
+    let english = &languages.document_languages[2];
+    assert_eq!(english.name.as_deref(), Some("english"));
+    assert_eq!(english.code, "en");
+}
+
+#[test]
+fn allowed_cross_languages_also_reads_lists_of_codes() {
+    // The API docs show lists of codes.
+    let languages: copyleaks::misc::AllowedCrossLanguages = serde_json::from_value(json!({
+        "documentLanguages": ["da", null, "en"],
+        "resultLanguages": null
+    }))
+    .expect("parses");
+    assert_eq!(languages.document_codes(), ["da", "en"]);
+    assert_eq!(languages.document_languages[0].name, None);
+    assert!(languages.result_languages.is_empty());
 }
 
 #[tokio::test]

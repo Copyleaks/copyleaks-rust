@@ -95,7 +95,7 @@ async fn get_is_retried_after_503_with_backoff() {
     Mock::given(method("GET"))
         .and(path("/v3/miscellaneous/allowed-cross-languages"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "documentLanguages": ["en"], "resultLanguages": ["fr"]
+            "documentLanguages": { "english": "en" }, "resultLanguages": { "french": "fr" }
         })))
         .expect(1)
         .mount(&server)
@@ -105,7 +105,7 @@ async fn get_is_retried_after_503_with_backoff() {
         .allowed_cross_languages()
         .await
         .expect("retried twice");
-    assert_eq!(languages.document_languages, ["en"]);
+    assert_eq!(languages.document_codes(), ["en"]);
     assert_eq!(request_count(&server).await, 3);
 }
 
