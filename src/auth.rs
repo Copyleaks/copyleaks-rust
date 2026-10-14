@@ -1,6 +1,7 @@
 //! The login token.
 
 use std::fmt;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -15,8 +16,9 @@ const EXPIRY_MARGIN_SECS: i64 = 5 * 60;
 ///
 /// Treat it as a password. Its `Debug` output hides the access token.
 /// It serializes to the same JSON that the login endpoint returns, so you can cache it and
-/// reuse it.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// reuse it. Create one from cached parts with [`AuthToken::new`].
+#[derive(Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AuthToken {
     /// The bearer token sent in the `Authorization` header.
     pub access_token: String,
@@ -26,6 +28,10 @@ pub struct AuthToken {
     /// When the token expires (`.expires`), as an ISO 8601 time.
     #[serde(rename = ".expires")]
     pub expires: String,
+    /// `.expires` as Unix seconds, with the text it was parsed from, so that the check before
+    /// each call does not parse the time again.
+    #[serde(skip)]
+    parsed_expiry: OnceLock<(String, Option<i64>)>,
 }
 
 impl AuthToken {
@@ -39,6 +45,7 @@ impl AuthToken {
             access_token: access_token.into(),
             issued: issued.into(),
             expires: expires.into(),
+            parsed_expiry: OnceLock::new(),
         }
     }
 
@@ -61,7 +68,7 @@ impl AuthToken {
         if self.expires.trim().is_empty() {
             return Err(Error::TokenExpired);
         }
-        let expires = parse_timestamp(&self.expires).ok_or_else(|| {
+        let expires = self.expiry().ok_or_else(|| {
             Error::Validation(format!(
                 "the login token's .expires is not an ISO 8601 time: {:?}",
                 self.expires
@@ -78,6 +85,31 @@ impl AuthToken {
         Ok(())
     }
 }
+
+impl AuthToken {
+    /// `.expires` as Unix seconds. Parsed once; parsed again only when `expires` was changed.
+    fn expiry(&self) -> Option<i64> {
+        if let Some((text, parsed)) = self.parsed_expiry.get() {
+            if *text == self.expires {
+                return *parsed;
+            }
+            return parse_timestamp(&self.expires);
+        }
+        let parsed = parse_timestamp(&self.expires);
+        let _ = self.parsed_expiry.set((self.expires.clone(), parsed));
+        parsed
+    }
+}
+
+impl PartialEq for AuthToken {
+    fn eq(&self, other: &Self) -> bool {
+        self.access_token == other.access_token
+            && self.issued == other.issued
+            && self.expires == other.expires
+    }
+}
+
+impl Eq for AuthToken {}
 
 impl fmt::Debug for AuthToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -101,7 +133,18 @@ fn parse_timestamp(value: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_timestamp;
+    use super::{parse_timestamp, AuthToken};
+
+    #[test]
+    fn expiry_is_parsed_once_and_again_after_a_change() {
+        let mut token = AuthToken::new("t", "", "2999-01-01T00:00:00Z");
+        assert!(token.verify().is_ok());
+        assert!(token.parsed_expiry.get().is_some(), "cached");
+        assert!(token.verify().is_ok());
+        token.expires = "2020-01-01T00:00:00Z".to_owned();
+        assert!(matches!(token.verify(), Err(crate::Error::TokenExpired)));
+        assert_eq!(token, AuthToken::new("t", "", "2020-01-01T00:00:00Z"));
+    }
 
     #[test]
     fn parses_the_login_response_format() {

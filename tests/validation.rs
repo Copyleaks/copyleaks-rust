@@ -474,3 +474,351 @@ async fn image_extension_check_accepts_every_server_type() {
         assert!(matches!(error, Error::Http(_)), "{filename}: {error:?}");
     }
 }
+
+#[tokio::test]
+async fn new_scan_property_checks() {
+    use copyleaks::plagiarism::{
+        AiGeneratedText, Assignment, Course, Institution, ScanningInclude, WritingFeedback,
+    };
+
+    let server = silent_server().await;
+    let client = client(&server);
+    let with = |properties: ScanProperties| FileSubmission::from_bytes("text", "a.txt", properties);
+    let cases = [
+        (
+            properties().course(Course::new("CS-101")),
+            "upper-case course id",
+        ),
+        (
+            properties().assignment(Assignment::new("a".repeat(65))),
+            "assignment id over 64 characters",
+        ),
+        (
+            properties().institution(Institution::new("my-google-school")),
+            "reserved word in institution id",
+        ),
+        (
+            properties().ai_generated_text(AiGeneratedText::default().sensitivity(0)),
+            "AI sensitivity 0",
+        ),
+        (
+            properties().ai_generated_text(AiGeneratedText::default().sensitivity(4)),
+            "AI sensitivity 4",
+        ),
+        (
+            properties().writing_feedback(
+                WritingFeedback::default()
+                    .score(ScoreWeights::default().word_choice_score_weight(-0.1)),
+            ),
+            "negative writing weight",
+        ),
+        (
+            properties().scanning(Scanning::default().exclude(
+                ScanningExclude::default().backlinks_domains(vec!["d.com".to_owned(); 11]),
+            )),
+            "11 backlink domains",
+        ),
+        (
+            properties().scanning(
+                Scanning::default()
+                    .exclude(ScanningExclude::default().backlinks_domains(vec!["d".repeat(257)])),
+            ),
+            "backlink domain over 256 characters",
+        ),
+        (
+            properties().scanning(
+                Scanning::default()
+                    .exclude(ScanningExclude::default().text(vec!["phrase".to_owned(); 6])),
+            ),
+            "6 excluded phrases",
+        ),
+        (
+            properties().scanning(
+                Scanning::default().exclude(ScanningExclude::default().text(vec!["x".repeat(31)])),
+            ),
+            "excluded phrase over 30 characters",
+        ),
+        (
+            properties().scanning(
+                Scanning::default().exclude(ScanningExclude::default().text(vec![String::new()])),
+            ),
+            "empty excluded phrase",
+        ),
+        (
+            properties().scanning(
+                Scanning::default().include(ScanningInclude::default().id_pattern("a".repeat(37))),
+            ),
+            "include idPattern over 36 characters",
+        ),
+    ];
+    for (properties, what) in cases {
+        assert_validation(
+            client
+                .submit_file(&token(), "scan-1", &with(properties))
+                .await,
+            what,
+        );
+    }
+
+    let bad_verb = UrlSubmission::new("https://example.com/", properties()).verb("DELETE");
+    assert_validation(
+        client.submit_url(&token(), "scan-1", &bad_verb).await,
+        "DELETE verb",
+    );
+}
+
+#[tokio::test]
+async fn new_scan_properties_at_their_limits_are_sent() {
+    use copyleaks::plagiarism::{AiGeneratedText, Course, Institution, ScanningInclude};
+
+    let server = accepting_server(2).await;
+    let client = client(&server);
+    let properties = properties()
+        .course(Course::new("a".repeat(64)))
+        .institution(Institution::new(""))
+        .ai_generated_text(AiGeneratedText::default().sensitivity(3))
+        .scanning(
+            Scanning::default()
+                .exclude(
+                    ScanningExclude::default()
+                        .backlinks_domains(vec!["d".repeat(256); 10])
+                        .text(vec!["x".repeat(30); 5]),
+                )
+                .include(ScanningInclude::default().id_pattern("a".repeat(36))),
+        );
+    client
+        .submit_file(
+            &token(),
+            "scan-1",
+            &FileSubmission::from_bytes("text", "a.txt", properties),
+        )
+        .await
+        .expect("at the limits");
+    let url = UrlSubmission::new("https://example.com/", self::properties()).verb("put");
+    client
+        .submit_url(&token(), "scan-1", &url)
+        .await
+        .expect("lower-case verb");
+}
+
+#[tokio::test]
+async fn export_new_field_checks() {
+    let server = silent_server().await;
+    let client = client(&server);
+    let export = Export::new("https://example.com/done");
+    for (bad, what) in [
+        (
+            export.clone().ai_detection(ExportTarget::new("", "POST")),
+            "aiDetection without endpoint",
+        ),
+        (
+            export
+                .clone()
+                .writing_feedback(ExportTarget::new("https://example.com/w", "")),
+            "writingFeedback without verb",
+        ),
+        (
+            export.clone().overview(ExportTarget::new("", "")),
+            "overview without endpoint",
+        ),
+        (
+            export.clone().developer_payload("x".repeat(513)),
+            "developer payload over 512 characters",
+        ),
+    ] {
+        assert_validation(
+            client.export(&token(), "scan-1", "export-1", &bad).await,
+            what,
+        );
+    }
+}
+
+#[tokio::test]
+async fn ai_image_object_detection_checks() {
+    use copyleaks::ai_image::ObjectDetection;
+
+    let server = silent_server().await;
+    let client = client(&server);
+    let request = |objects: Vec<ObjectDetection>| {
+        AiImageDetectionRequest::new("aW1n", "image.png", AI_IMAGE_1_ULTRA)
+            .object_detection(objects)
+    };
+    for (objects, what) in [
+        (Vec::new(), "no objects"),
+        (vec![ObjectDetection::new("face"); 4], "4 objects"),
+        (vec![ObjectDetection::new("  ")], "blank object"),
+        (
+            vec![ObjectDetection::new("x".repeat(33))],
+            "object over 32 characters",
+        ),
+    ] {
+        assert_validation(
+            client
+                .ai_image_detection(&token(), "scan-1", &request(objects.clone()))
+                .await,
+            what,
+        );
+        assert_validation(
+            client
+                .ai_image_detection_multipart(&token(), "scan-1", &request(objects))
+                .await,
+            what,
+        );
+    }
+    let bad_base64 = AiImageDetectionRequest::new("not base64!", "image.png", AI_IMAGE_1_ULTRA);
+    assert_validation(
+        client
+            .ai_image_detection_multipart(&token(), "scan-1", &bad_base64)
+            .await,
+        "base64 that does not decode",
+    );
+}
+
+#[tokio::test]
+async fn async_submission_checks() {
+    use copyleaks::ai_image::AiImageDetectionSubmission;
+    use copyleaks::ai_video::{AiVideoDetectionSubmission, AI_VIDEO_1_PRO};
+
+    let server = silent_server().await;
+    let client = client(&server);
+    let hook = "https://example.com/webhook/{STATUS}";
+    let image = |name: &str| {
+        AiImageDetectionSubmission::new("https://example.com/a.png", name, AI_IMAGE_1_ULTRA, hook)
+    };
+    for (submission, id, what) in [
+        (image("image.png"), "Scan-1", "upper-case scan id"),
+        (image("image.png"), "my-google-1", "reserved scan id"),
+        (image("image.png"), "ab", "short scan id"),
+        (image("png"), "scan-1", "3-character file name"),
+        (image("image.gif"), "scan-1", "unsupported extension"),
+        (
+            image("image.png").developer_payload("x".repeat(512)),
+            "scan-1",
+            "developer payload of 512 characters",
+        ),
+        (
+            AiImageDetectionSubmission::new("", "image.png", AI_IMAGE_1_ULTRA, hook),
+            "scan-1",
+            "no URL",
+        ),
+        (
+            AiImageDetectionSubmission::new("https://example.com/a.png", "image.png", "", hook),
+            "scan-1",
+            "no model",
+        ),
+        (
+            AiImageDetectionSubmission::new(
+                "https://example.com/a.png",
+                "image.png",
+                AI_IMAGE_1_ULTRA,
+                "",
+            ),
+            "scan-1",
+            "no webhook",
+        ),
+    ] {
+        assert_validation(
+            client
+                .submit_ai_image_detection(&token(), id, &submission)
+                .await,
+            what,
+        );
+    }
+
+    let video = |name: &str| {
+        AiVideoDetectionSubmission::new("https://example.com/v.mp4", name, AI_VIDEO_1_PRO, hook)
+    };
+    for (submission, what) in [
+        (video("clip.gif"), "unsupported extension"),
+        (
+            video(&format!("{}.mp4", "v".repeat(251))),
+            "255-character file name",
+        ),
+        (video("clip.mp4").verb("PATCH"), "PATCH verb"),
+        (
+            video("clip.mp4").developer_payload("x".repeat(512)),
+            "developer payload of 512 characters",
+        ),
+    ] {
+        assert_validation(
+            client
+                .submit_ai_video_detection(&token(), "video-1", &submission)
+                .await,
+            what,
+        );
+    }
+}
+
+#[tokio::test]
+async fn async_submissions_accept_the_full_scan_id_charset() {
+    use copyleaks::ai_video::{AiVideoDetectionSubmission, AI_VIDEO_1_PRO};
+
+    let server = accepting_server(1).await;
+    let submission = AiVideoDetectionSubmission::new(
+        "https://example.com/v.MKV",
+        "clip.MKV",
+        AI_VIDEO_1_PRO,
+        "https://example.com/hook",
+    )
+    .verb("post");
+    client(&server)
+        .submit_ai_video_detection(&token(), "a/b^{c}|`\\%+<>\"", &submission)
+        .await
+        .expect("accepted");
+}
+
+#[tokio::test]
+async fn image_plagiarism_checks() {
+    use copyleaks::image_plagiarism::ImagePlagiarismRequest;
+
+    let server = silent_server().await;
+    let client = client(&server);
+    for (request, id, what) in [
+        (
+            ImagePlagiarismRequest::new(Vec::new(), "a.png"),
+            "scan-1",
+            "empty image",
+        ),
+        (
+            ImagePlagiarismRequest::new(vec![0; (20 << 20) + 1], "a.png"),
+            "scan-1",
+            "image over 20 MB",
+        ),
+        (
+            ImagePlagiarismRequest::new(b"x".to_vec(), "a.heic"),
+            "scan-1",
+            "HEIC",
+        ),
+        (
+            ImagePlagiarismRequest::new(b"x".to_vec(), "   "),
+            "scan-1",
+            "blank file name",
+        ),
+        (
+            ImagePlagiarismRequest::new(b"x".to_vec(), format!("{}.png", "a".repeat(252))),
+            "scan-1",
+            "256-character file name",
+        ),
+        (
+            ImagePlagiarismRequest::new(b"x".to_vec(), "a.png"),
+            "google-1",
+            "reserved scan id",
+        ),
+        (
+            ImagePlagiarismRequest::new(b"x".to_vec(), "a.png"),
+            "SCAN",
+            "upper-case scan id",
+        ),
+    ] {
+        assert_validation(
+            client
+                .image_plagiarism_detection(&token(), id, &request)
+                .await,
+            what,
+        );
+    }
+    assert_validation(
+        client.repository_info(&token(), " ").await,
+        "blank repository id",
+    );
+}

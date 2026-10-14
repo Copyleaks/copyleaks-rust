@@ -1,0 +1,259 @@
+{
+  "statistics": {
+    "identical": 0,
+    "minorChanges": 0,
+    "relatedMeaning": 0
+  },
+  "text": {
+    "value": "Hello world!",
+    "pages": {
+      "startPosition": [
+        0
+      ]
+    },
+    "comparison": {
+      "identical": {
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      },
+      "minorChanges": {
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      },
+      "relatedMeaning": {
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      }
+    }
+  },
+  "html": {
+    "value": "<HTML><body><h3>Hello world!</h3></body></HTML>",
+    "comparison": {
+      "identical": {
+        "groupId": [
+          0
+        ],
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      },
+      "minorChanges": {
+        "groupId": [
+          0
+        ],
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      },
+      "relatedMeaning": {
+        "groupId": [
+          0
+        ],
+        "source": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        },
+        "suspected": {
+          "chars": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          },
+          "words": {
+            "starts": [
+              0
+            ],
+            "lengths": [
+              1
+            ]
+          }
+        }
+      }
+    }
+  }
+}

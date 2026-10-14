@@ -1,0 +1,4 @@
+{
+  "overview": "### Historical Author Data:\n- Four scans analyzed with an average plagiarism similarity of 13.18%\n- 4 instances of AI-generated content detected\n\n### Current Plagiarism Detection:\n- 0% overall plagiarism\n- Main sources: \n  - yard.com (3.0%, 74 words)\n  - brainly.com (3.2%, 45 words)\n  - llcattorney.com (1.3%, 29 words)\n  - montrosedemocrats.org (3.0%, 12 words)\n\n### AI Content Detection:\n- 100% AI-written content detected\n\n### Grammar Checker:\n- 100% writing quality with no errors in grammar, sentence structure, word choice, and mechanics.",
+  "modelVersion": "v1"
+}

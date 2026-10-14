@@ -5,6 +5,12 @@
 //! It calls the new result webhook with [`NewResultWebhook`] while the scan runs, and the export
 //! completion webhook with [`ExportCompletedWebhook`].
 //!
+//! The asynchronous products post their own results: an
+//! [`AiImageDetectionResponse`](crate::ai_image::AiImageDetectionResponse) for AI Image
+//! Detection by URL, and an [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse)
+//! for AI Video Detection. The files an export uploads are in [`crate::exports`]. Parse any of
+//! them with [`parse`].
+//!
 //! ```
 //! use copyleaks::webhooks::{self, CompletedWebhook};
 //!
@@ -23,6 +29,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ai_text::AiTextDetectionResponse;
+use crate::exports::ReferencesValidation;
+use crate::grammar::{Readability, ScoreCorrections, TextStatistics};
 use crate::{de, Result};
 
 /// Scan alert codes, found in [`Alert::code`].
@@ -32,7 +40,7 @@ pub mod alert_codes {
     pub const SUSPECTED_AI_TEXT: &str = "suspected-ai-text";
 }
 
-/// Parses a webhook body into one of the payload types of this module.
+/// Parses a webhook body, or an exported file, into one of the payload types of the SDK.
 ///
 /// # Errors
 ///
@@ -44,6 +52,7 @@ pub fn parse<T: DeserializeOwned>(body: &[u8]) -> Result<T> {
 /// The `completed` status webhook: the scan finished successfully.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CompletedWebhook {
     /// The scan status: `0` success, `1` error, `2` credits checked, `3` indexed.
     pub status: Option<i32>,
@@ -53,8 +62,28 @@ pub struct CompletedWebhook {
     pub scanned_document: Option<WebhookScannedDocument>,
     /// The results, grouped by source, and the aggregated score.
     pub results: Option<Results>,
+    /// The Citation Checker summary, when the scan was submitted with `references.validate`.
+    /// The result of each reference is in the exported
+    /// [`CrawledVersion`](crate::exports::CrawledVersion).
+    pub references_validation: Option<ReferencesValidation>,
+    /// The Grammar Checker scores, when the scan was submitted with `writingFeedback.enable`.
+    pub writing_feedback: Option<WebhookWritingFeedback>,
     /// Scan alerts.
     pub notifications: Option<Notifications>,
+}
+
+/// The Grammar Checker scores of a plagiarism scan, in the completed webhook. Export the
+/// corrections with [`Export::writing_feedback`](field@crate::plagiarism::Export::writing_feedback).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct WebhookWritingFeedback {
+    /// Statistics of the text.
+    pub text_statistics: Option<TextStatistics>,
+    /// Correction counts, scores and weights per category, and the overall score.
+    pub score: Option<ScoreCorrections>,
+    /// Readability of the text.
+    pub readability: Option<Readability>,
 }
 
 impl CompletedWebhook {
@@ -90,6 +119,7 @@ impl CompletedWebhook {
 /// The `error` status webhook: the scan ended with an error.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ErrorWebhook {
     /// The scan status: `1` for error.
     pub status: Option<i32>,
@@ -101,6 +131,7 @@ pub struct ErrorWebhook {
 
 /// Why a scan failed.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct WebhookError {
     /// The error code. See <https://docs.copyleaks.com/using-the-apis/api-errors>.
     pub code: Option<i32>,
@@ -120,6 +151,7 @@ pub struct WebhookError {
 
 /// A parameter that caused an error.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct WebhookErrorDetail {
     /// The parameter name.
     pub param: Option<String>,
@@ -132,6 +164,7 @@ pub struct WebhookErrorDetail {
 /// known. Start it with [`Client::start`](crate::Client::start).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CreditsCheckedWebhook {
     /// The scan status: `2` for credits checked.
     pub status: Option<i32>,
@@ -146,6 +179,7 @@ pub struct CreditsCheckedWebhook {
 /// The `indexed` status webhook: the document was indexed without a scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct IndexedWebhook {
     /// The scan status: `3` for indexed.
     pub status: Option<i32>,
@@ -158,6 +192,7 @@ pub struct IndexedWebhook {
 /// The export succeeded when `completed` is `true` and every task is healthy with a 2xx status.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ExportCompletedWebhook {
     /// Whether the export finished without internal errors on the Copyleaks side.
     #[serde(default, deserialize_with = "de::null_as_default")]
@@ -172,6 +207,7 @@ pub struct ExportCompletedWebhook {
 /// An upload task of an export.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ExportTask {
     /// The URL the data was uploaded to.
     pub endpoint: Option<String>,
@@ -185,6 +221,7 @@ pub struct ExportTask {
 /// The new result webhook, sent while the scan is still running each time new results are found.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct NewResultWebhook {
     /// The developer payload you sent with the submit.
     pub developer_payload: Option<String>,
@@ -203,6 +240,13 @@ pub struct NewResultWebhook {
     /// New results from Private Cloud Hubs.
     #[serde(default, deserialize_with = "de::vec_skip_nulls")]
     pub repositories: Vec<RepositoryResult>,
+    /// New matches in the Copyleaks internal database of AI-generated text.
+    #[serde(
+        rename = "internalAIData",
+        default,
+        deserialize_with = "de::vec_skip_nulls"
+    )]
+    pub internal_ai_data: Vec<InternalAiResult>,
 }
 
 /// Reads the new result score, which the server sends as a score object and the API docs show
@@ -232,6 +276,7 @@ where
 /// General information about the scanned document, in a status webhook.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct WebhookScannedDocument {
     /// The scan id you provided.
     pub scan_id: Option<String>,
@@ -241,15 +286,50 @@ pub struct WebhookScannedDocument {
     pub total_excluded: Option<i64>,
     /// Credits used for the scan.
     pub credits: Option<i64>,
+    /// The number of credits the scan was expected to cost.
+    pub expected_credits: Option<i64>,
     /// When the scan was created, as an ISO 8601 time (UTC).
     pub creation_time: Option<String>,
     /// Metadata of the scanned document.
     pub metadata: Option<Metadata>,
+    /// The features that ran on the scan.
+    pub enabled: Option<EnabledFeatures>,
+    /// The language detected in the scanned document, for example `en`.
+    pub detected_language: Option<String>,
+}
+
+/// The features that ran on a scan, in
+/// [`WebhookScannedDocument::enabled`](field@WebhookScannedDocument::enabled).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct EnabledFeatures {
+    /// Plagiarism detection.
+    pub plagiarism_detection: Option<bool>,
+    /// AI Text Detection.
+    pub ai_detection: Option<bool>,
+    /// AI Logic explanations.
+    pub explainable_ai: Option<bool>,
+    /// Grammar Checker.
+    pub writing_feedback: Option<bool>,
+    /// The PDF report.
+    pub pdf_report: Option<bool>,
+    /// Cheat detection.
+    pub cheat_detection: Option<bool>,
+    /// Gen-AI Overview.
+    pub overview: Option<bool>,
+    /// Citation Checker.
+    pub references_validation: Option<bool>,
+    /// AI Source Match.
+    pub ai_source_match: Option<bool>,
+    /// Internal AI Source Match.
+    pub internal_ai_source_match: Option<bool>,
 }
 
 /// Metadata of a document.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Metadata {
     /// The URL after all HTTP redirects.
     pub final_url: Option<String>,
@@ -273,6 +353,7 @@ pub struct Metadata {
 
 /// The results of a completed scan, grouped by source.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Results {
     /// Results from the internet.
     #[serde(default, deserialize_with = "de::vec_skip_nulls")]
@@ -286,13 +367,48 @@ pub struct Results {
     /// Results from Private Cloud Hubs.
     #[serde(default, deserialize_with = "de::vec_skip_nulls")]
     pub repositories: Vec<RepositoryResult>,
+    /// Matches in the Copyleaks internal database of AI-generated text, when the scan was
+    /// submitted with `internalAiSourceMatch.enable`.
+    #[serde(
+        rename = "internalAIData",
+        default,
+        deserialize_with = "de::vec_skip_nulls"
+    )]
+    pub internal_ai_data: Vec<InternalAiResult>,
     /// The aggregated score of all results.
     pub score: Option<Score>,
+}
+
+/// A match in the Copyleaks internal database of AI-generated text.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct InternalAiResult {
+    /// A short id of the match.
+    pub id: Option<String>,
+    /// The title of the matched entry.
+    pub title: Option<String>,
+    /// An excerpt of the matched content.
+    pub introduction: Option<String>,
+    /// Total matched words.
+    pub matched_words: Option<i64>,
+    /// Identical words.
+    pub identical_words: Option<i64>,
+    /// Similar but not identical words.
+    pub similar_words: Option<i64>,
+    /// Paraphrased words.
+    pub paraphrased_words: Option<i64>,
+    /// The number of words in the matched entry.
+    pub total_words: Option<i64>,
+    /// Result tags.
+    #[serde(default, deserialize_with = "de::vec_skip_nulls")]
+    pub tags: Vec<Tag>,
 }
 
 /// A result from the internet.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct InternetResult {
     /// The result id. Use it to export the result.
     pub id: Option<String>,
@@ -314,6 +430,7 @@ pub struct InternetResult {
 /// A result from the Shared Data Hub or from your batch.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct DatabaseResult {
     /// The result id. Use it to export the result.
     pub id: Option<String>,
@@ -335,6 +452,7 @@ pub struct DatabaseResult {
 /// A result from a Private Cloud Hub.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct RepositoryResult {
     /// The result id. Use it to export the result.
     pub id: Option<String>,
@@ -357,6 +475,7 @@ pub struct RepositoryResult {
 
 /// A result tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Tag {
     /// The tag type id.
     pub code: Option<String>,
@@ -369,6 +488,7 @@ pub struct Tag {
 /// A plagiarism score.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Score {
     /// Number of identical words.
     pub identical_words: Option<i64>,
@@ -382,6 +502,7 @@ pub struct Score {
 
 /// Scan alerts of a completed scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Notifications {
     /// The scan alerts. `null` entries are skipped.
     #[serde(default, deserialize_with = "de::vec_skip_nulls")]
@@ -391,6 +512,7 @@ pub struct Notifications {
 /// A scan alert.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Alert {
     /// The alert category. `2` is AI content detection.
     pub category: Option<i32>,
@@ -435,11 +557,13 @@ impl Alert {
         if data.is_empty() {
             return Ok(None);
         }
-        let value: serde_json::Value = serde_json::from_str(data)?;
-        if !value.is_object() {
-            return Ok(None);
+        // Decode an object straight into the result. Anything else is checked to be valid JSON,
+        // without building it, and gives no result.
+        if data.trim_start().starts_with('{') {
+            return Ok(Some(serde_json::from_str(data)?));
         }
-        Ok(Some(serde_json::from_value(value)?))
+        serde_json::from_str::<serde::de::IgnoredAny>(data)?;
+        Ok(None)
     }
 }
 

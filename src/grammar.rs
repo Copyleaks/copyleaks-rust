@@ -7,6 +7,7 @@ use crate::{de, validate, Result, ScannedDocument};
 /// A text to check, for [`Client::grammar_check`](crate::Client::grammar_check).
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct GrammarCheckRequest {
     /// The text. From 1 to 25,000 characters.
     pub text: String,
@@ -33,7 +34,7 @@ impl GrammarCheckRequest {
     pub(crate) fn validate(&self) -> Result<()> {
         validate::length(&self.text, "text", 1, 25_000)?;
         if let Some(score) = &self.score {
-            score.validate()?;
+            score.validate("score")?;
         }
         Ok(())
     }
@@ -46,9 +47,13 @@ setters!(GrammarCheckRequest {
 });
 
 /// The weight of each correction category in the overall score, each from 0.0 to 1.0.
-/// A category without a weight uses the default of 1.0.
+/// A category without a weight uses the default of 1.0. Used by
+/// [`GrammarCheckRequest::score`](field@GrammarCheckRequest::score) and by the Grammar Checker of
+/// a plagiarism scan,
+/// [`WritingFeedback::score`](field@crate::plagiarism::WritingFeedback::score).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ScoreWeights {
     /// The weight of grammar corrections.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,19 +70,20 @@ pub struct ScoreWeights {
 }
 
 impl ScoreWeights {
-    fn validate(&self) -> Result<()> {
+    /// Checks each weight; `prefix` is the path of the object, for example `score`.
+    pub(crate) fn validate(&self, prefix: &str) -> Result<()> {
         let weights = [
-            (self.grammar_score_weight, "score.grammarScoreWeight"),
-            (self.mechanics_score_weight, "score.mechanicsScoreWeight"),
+            (self.grammar_score_weight, "grammarScoreWeight"),
+            (self.mechanics_score_weight, "mechanicsScoreWeight"),
             (
                 self.sentence_structure_score_weight,
-                "score.sentenceStructureScoreWeight",
+                "sentenceStructureScoreWeight",
             ),
-            (self.word_choice_score_weight, "score.wordChoiceScoreWeight"),
+            (self.word_choice_score_weight, "wordChoiceScoreWeight"),
         ];
         for (weight, name) in weights {
             if let Some(weight) = weight {
-                validate::weight(weight, name)?;
+                validate::weight(weight, &format!("{prefix}.{name}"))?;
             }
         }
         Ok(())
@@ -92,8 +98,12 @@ setters!(ScoreWeights {
 });
 
 /// The result of the Grammar Checker. Unknown fields are ignored and missing fields are `None`.
+///
+/// It is also the content of the Grammar Checker report of a plagiarism scan, uploaded by
+/// [`Export::writing_feedback`](field@crate::plagiarism::Export::writing_feedback).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct GrammarCheckResponse {
     /// Writing scores, readability and text statistics.
     pub score: Option<GrammarScore>,
@@ -107,6 +117,7 @@ pub struct GrammarCheckResponse {
 
 /// Writing scores, readability and text statistics.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct GrammarScore {
     /// Correction counts, scores and weights per category, and the overall score.
     pub corrections: Option<ScoreCorrections>,
@@ -119,6 +130,7 @@ pub struct GrammarScore {
 /// Correction counts, scores (0 to 100) and weights per category, and the overall score.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ScoreCorrections {
     /// Number of grammar corrections.
     pub grammar_corrections_count: Option<i64>,
@@ -151,6 +163,7 @@ pub struct ScoreCorrections {
 /// Readability of the text.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Readability {
     /// Readability score.
     pub score: Option<i64>,
@@ -165,6 +178,7 @@ pub struct Readability {
 /// Statistics of the text.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TextStatistics {
     /// Number of sentences.
     pub sentence_count: Option<i64>,
@@ -180,6 +194,7 @@ pub struct TextStatistics {
 
 /// The suggested corrections.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct GrammarCorrections {
     /// Corrections in the plain text.
     pub text: Option<CorrectionsText>,
@@ -187,6 +202,7 @@ pub struct GrammarCorrections {
 
 /// Corrections in the plain text.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CorrectionsText {
     /// Character positions of the corrections.
     pub chars: Option<CorrectionRanges>,
@@ -196,6 +212,7 @@ pub struct CorrectionsText {
 /// `starts[i]` with `operation_texts[i]`, and its type is `types[i]`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CorrectionRanges {
     /// Correction type ids. See
     /// [`Client::grammar_correction_types`](crate::Client::grammar_correction_types).
@@ -216,6 +233,7 @@ pub struct CorrectionRanges {
 /// [`Client::grammar_correction_types`](crate::Client::grammar_correction_types).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CorrectionTypes {
     /// The correction types.
     #[serde(default, deserialize_with = "de::null_as_default")]
@@ -224,6 +242,7 @@ pub struct CorrectionTypes {
 
 /// A correction type.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CorrectionType {
     /// The id used in [`CorrectionRanges::types`].
     pub id: Option<i32>,
