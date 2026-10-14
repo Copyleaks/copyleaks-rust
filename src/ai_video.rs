@@ -2,7 +2,9 @@
 //!
 //! The detection is asynchronous: [`Client::submit_ai_video_detection`] returns once Copyleaks
 //! accepts the video, and Copyleaks then posts an [`AiVideoDetectionResponse`] to your webhook.
-//! Parse it with [`webhooks::parse`](crate::webhooks::parse).
+//! Parse it with [`webhooks::parse`](crate::webhooks::parse), and check its
+//! [`error`](field@AiVideoDetectionResponse::error) first: a failed detection has only the error
+//! and the developer payload.
 //!
 //! [`Client::submit_ai_video_detection`]: crate::Client::submit_ai_video_detection
 //!
@@ -26,6 +28,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ai_image::ImageMetadata;
 use crate::common::{Headers, ResultWebhook};
+use crate::webhooks::WebhookError;
 use crate::{de, validate, Result};
 
 /// Metadata read from the video file, when available. The same fields as for images.
@@ -125,10 +128,15 @@ setters!(AiVideoDetectionSubmission {
 /// The result of AI Video Detection, posted to the webhook of an
 /// [`AiVideoDetectionSubmission`]. Positions and lengths are in milliseconds. Missing fields are
 /// `None`, and a missing or `null` list is empty.
+///
+/// Check [`error`](field@Self::error) first: when the detection fails, Copyleaks posts only the
+/// error and the developer payload.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AiVideoDetectionResponse {
+    /// Why the detection failed. When it is set, the result fields are `None`.
+    pub error: Option<WebhookError>,
     /// The version of the detection model.
     pub model: Option<String>,
     /// The AI-generated segments of the audio track.

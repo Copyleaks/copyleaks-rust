@@ -11,8 +11,10 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use common::{client, gzip, only_request, token};
+use copyleaks::ai_image::{AiImageDetectionRequest, AI_IMAGE_1_ULTRA};
+use copyleaks::image_plagiarism::ImagePlagiarismRequest;
 use copyleaks::plagiarism::{FileSubmission, ScanProperties};
-use copyleaks::Client;
+use copyleaks::{AuthToken, Client, Error, RetryPolicy};
 use serde_json::json;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -68,7 +70,7 @@ async fn gzip_body_limits_apply_to_the_decoded_size() {
         .await
         .expect_err("too large once decoded");
     assert!(
-        matches!(error, copyleaks::Error::ResponseTooLarge { limit, .. } if limit == 16 << 20),
+        matches!(error, Error::ResponseTooLarge { limit, .. } if limit == 16 << 20),
         "{error:?}"
     );
 }
@@ -213,4 +215,31 @@ async fn large_upload_is_encoded_off_the_runtime_and_arrives_intact() {
         body["properties"],
         json!({ "webhooks": { "status": "https://example.com/webhook/{STATUS}" } })
     );
+}
+
+#[test]
+fn client_types_are_send_and_sync_and_call_futures_are_send() {
+    // Checked by the compiler: the futures are created and dropped without being polled.
+    fn send_sync<T: Send + Sync>() {}
+    fn send<T: Send>(_: T) {}
+
+    send_sync::<Client>();
+    send_sync::<AuthToken>();
+    send_sync::<Error>();
+    send_sync::<RetryPolicy>();
+
+    let client = Client::new().expect("client");
+    let token = token();
+    let file = FileSubmission::from_bytes(
+        "text",
+        "a.txt",
+        ScanProperties::new("https://example.com/webhook/{STATUS}"),
+    );
+    let image = AiImageDetectionRequest::from_bytes(b"x".to_vec(), "a.png", AI_IMAGE_1_ULTRA);
+    let lookalike = ImagePlagiarismRequest::new(b"x".to_vec(), "a.png");
+    send(client.login("user@example.com", "key"));
+    send(client.submit_file(&token, "scan-1", &file));
+    send(client.ai_image_detection(&token, "scan-1", &image));
+    send(client.ai_image_detection_multipart(&token, "scan-1", &image));
+    send(client.image_plagiarism_detection(&token, "scan-1", &lookalike));
 }

@@ -9,12 +9,15 @@
 //!   result. The API recommends it for large images.
 //! - [`Client::submit_ai_image_detection`](crate::Client::submit_ai_image_detection) submits an
 //!   image URL, and Copyleaks posts the result to your webhook. Parse it with
-//!   [`webhooks::parse`](crate::webhooks::parse) into an [`AiImageDetectionResponse`].
+//!   [`webhooks::parse`](crate::webhooks::parse) into an [`AiImageDetectionResponse`], and check
+//!   its [`error`](field@AiImageDetectionResponse::error) first: a failed detection has only the
+//!   error and the developer payload.
 
 use serde::{Deserialize, Serialize};
 
 use crate::body::{Content, UploadBody};
 use crate::common::{Headers, ResultWebhook};
+use crate::webhooks::WebhookError;
 use crate::{de, validate, Result, ScannedDocument};
 
 /// The AI Image 1 Ultra model. It returns a mask of the AI-generated regions.
@@ -287,10 +290,16 @@ setters!(AiImageDetectionSubmission {
 /// The result of AI Image Detection, and the webhook payload of
 /// [`Client::submit_ai_image_detection`](crate::Client::submit_ai_image_detection).
 /// Missing fields are `None`.
+///
+/// In a webhook payload, check [`error`](field@Self::error) first: when the detection fails,
+/// Copyleaks posts only the error and the developer payload.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AiImageDetectionResponse {
+    /// Why the detection failed, in a webhook payload. When it is set, the result fields are
+    /// `None`. The synchronous calls return an [`Error`](crate::Error) instead.
+    pub error: Option<WebhookError>,
     /// The version of the detection model.
     pub model: Option<String>,
     /// The mask of the AI-generated regions, run-length encoded over the flattened image.

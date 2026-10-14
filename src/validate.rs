@@ -1,7 +1,7 @@
 //! Cheap client-side checks that match the server's rules, so a bad request fails fast
 //! with [`Error::Validation`] instead of a round trip.
 //!
-//! Lengths are counted in UTF-16 code units, as the server (.NET `string.Length`) counts them.
+//! Lengths are counted in UTF-16 code units, as the server counts them.
 
 use crate::{Error, Result};
 
@@ -87,6 +87,16 @@ fn is_reserved(id: &str) -> bool {
 pub(crate) fn required(value: &str, name: &str) -> Result<()> {
     if value.trim().is_empty() {
         return Err(Error::Validation(format!("{name} is required")));
+    }
+    Ok(())
+}
+
+/// Checks a value sent as one segment of the URL path: not empty, and not `.` or `..`, which the
+/// URL would drop instead of sending.
+pub(crate) fn path_segment(value: &str, name: &str) -> Result<()> {
+    required(value, name)?;
+    if matches!(value, "." | "..") {
+        return Err(Error::Validation(format!("{name} must not be {value:?}")));
     }
     Ok(())
 }
@@ -309,6 +319,16 @@ mod tests {
         assert!(string_list(&items(1, 257), "domains", 10, 1, 256).is_err());
         assert!(string_list(&items(1, 0), "domains", 10, 1, 256).is_err());
         assert!(string_list(&[], "domains", 10, 1, 256).is_ok());
+    }
+
+    #[test]
+    fn path_segments() {
+        for value in ["en", "a.b", "...", ".x", "x.."] {
+            assert!(path_segment(value, "id").is_ok(), "{value}");
+        }
+        for value in ["", " ", ".", ".."] {
+            assert!(path_segment(value, "id").is_err(), "{value}");
+        }
     }
 
     #[test]

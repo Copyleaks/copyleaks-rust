@@ -8,8 +8,9 @@
 //! The asynchronous products post their own results: an
 //! [`AiImageDetectionResponse`](crate::ai_image::AiImageDetectionResponse) for AI Image
 //! Detection by URL, and an [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse)
-//! for AI Video Detection. The files an export uploads are in [`crate::exports`]. Parse any of
-//! them with [`parse`].
+//! for AI Video Detection. Check their `error` field first: a failed detection has only the
+//! error and the developer payload. The files an export uploads are in [`crate::exports`]. Parse
+//! any of them with [`parse`].
 //!
 //! ```
 //! use copyleaks::webhooks::{self, CompletedWebhook};

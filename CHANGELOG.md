@@ -17,6 +17,9 @@ releases can add API fields without breaking your code. Read the upgrade notes b
   an `ai_video::AiVideoDetectionResponse` to your webhook.
 - AI Image Detection by URL: `Client::submit_ai_image_detection` with an
   `AiImageDetectionSubmission`; the result is posted to your webhook.
+- `error` on `ai_video::AiVideoDetectionResponse` and `AiImageDetectionResponse`, set when an
+  asynchronous detection fails: a `webhooks::WebhookError` with the type, id, code and message.
+  The webhook then has only the error and the developer payload, so check it first.
 - AI Image Detection with a multipart upload, without the base64 overhead:
   `Client::ai_image_detection_multipart`.
 - AI Image Detection options `mask_type` (`MaskType::Binary`, `Heatmap` or `None`) and

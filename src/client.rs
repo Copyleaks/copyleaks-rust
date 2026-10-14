@@ -412,14 +412,14 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for an empty repository id, [`Error::Api`] with status 403 without
-    /// the needed role, and the other [`Error`] variants for other failures.
+    /// [`Error::Validation`] for an empty repository id, or `.` or `..`, [`Error::Api`] with
+    /// status 403 without the needed role, and the other [`Error`] variants for other failures.
     pub async fn repository_info(
         &self,
         token: &AuthToken,
         repository_id: &str,
     ) -> Result<RepositoryInfo> {
-        validate::required(repository_id, "repository id")?;
+        validate::path_segment(repository_id, "repository id")?;
         let url = self.url(
             Server::Api,
             &["v3", "repositories", "repository", repository_id, "info"],
@@ -624,9 +624,10 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// The [`Error`] variants for transport, server and decoding failures.
+    /// [`Error::Validation`] for an empty language code, or `.` or `..`, and the other [`Error`]
+    /// variants for transport, server and decoding failures.
     pub async fn grammar_correction_types(&self, language_code: &str) -> Result<CorrectionTypes> {
-        validate::required(language_code, "language code")?;
+        validate::path_segment(language_code, "language code")?;
         self.public_json(&["v1", "writing-feedback", "correction-types", language_code])
             .await
     }

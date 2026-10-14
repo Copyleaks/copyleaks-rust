@@ -822,3 +822,39 @@ async fn image_plagiarism_checks() {
         "blank repository id",
     );
 }
+
+#[tokio::test]
+async fn dot_path_segments_are_rejected() {
+    // The URL would drop a `.` or `..` segment and call another endpoint.
+    let server = silent_server().await;
+    let client = client(&server);
+    for value in [".", ".."] {
+        assert_validation(client.repository_info(&token(), value).await, value);
+        assert_validation(client.grammar_correction_types(value).await, value);
+    }
+}
+
+#[tokio::test]
+async fn dotted_path_segments_are_sent_encoded_in_place() {
+    let server = accepting_server(2).await;
+    let client = client(&server);
+    client.repository_info(&token(), "...").await.expect("sent");
+    client
+        .grammar_correction_types("%2e%2e")
+        .await
+        .expect("sent");
+    let paths: Vec<String> = server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .iter()
+        .map(|request| request.url.path().to_owned())
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            "/v3/repositories/repository/.../info",
+            "/v1/writing-feedback/correction-types/%252e%252e",
+        ]
+    );
+}

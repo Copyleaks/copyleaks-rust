@@ -111,7 +111,8 @@ for found in &response.detected_objects {
 ```
 
 To check an image by URL, submit it and receive the same `AiImageDetectionResponse` at your
-webhook:
+webhook. Check its `error` first: a failed detection has only the error and the developer
+payload.
 
 ```rust
 use copyleaks::ai_image::{AiImageDetectionSubmission, AI_IMAGE_1_ULTRA};
@@ -142,6 +143,22 @@ let submission = AiVideoDetectionSubmission::new(
 )
 .sandbox(true);
 client.submit_ai_video_detection(&token, "my-video-1", &submission).await?;
+```
+
+Parse the webhook body and check `error` first: a failed detection has only the error and the
+developer payload.
+
+```rust
+use copyleaks::ai_video::AiVideoDetectionResponse;
+use copyleaks::webhooks;
+
+// `body` is the raw request body (`&[u8]`) your web framework received.
+let video: AiVideoDetectionResponse = webhooks::parse(body)?;
+if let Some(error) = &video.error {
+    eprintln!("detection failed: {:?} {:?}", error.id, error.message);
+} else {
+    println!("AI-generated: {:?}", video.is_ai_detected);
+}
 ```
 
 ## Plagiarism Checker

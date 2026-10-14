@@ -131,6 +131,20 @@ mod snippets {
         Ok(())
     }
 
+    fn ai_video_webhook(body: &[u8]) -> Result {
+        use copyleaks::ai_video::AiVideoDetectionResponse;
+        use copyleaks::webhooks;
+
+        // `body` is the raw request body (`&[u8]`) your web framework received.
+        let video: AiVideoDetectionResponse = webhooks::parse(body)?;
+        if let Some(error) = &video.error {
+            eprintln!("detection failed: {:?} {:?}", error.id, error.message);
+        } else {
+            println!("AI-generated: {:?}", video.is_ai_detected);
+        }
+        Ok(())
+    }
+
     async fn plagiarism(client: Client, token: AuthToken) -> Result {
         use copyleaks::plagiarism::{AiGeneratedText, FileSubmission, ScanProperties, UrlSubmission};
 

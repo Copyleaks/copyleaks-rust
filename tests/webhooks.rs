@@ -777,6 +777,84 @@ fn ai_video_webhook() {
         scanned.creation_time.as_deref(),
         Some("2026-05-05T12:37:50Z")
     );
+    assert!(video.error.is_none());
+    assert!(video.developer_payload.is_none());
+}
+
+#[test]
+fn ai_video_webhook_echoes_the_developer_payload() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let mut body = fixture("ai_video_webhook.json");
+    body["developerPayload"] = json!("order-1");
+    let video: AiVideoDetectionResponse =
+        webhooks::parse(&serde_json::to_vec(&body).expect("bytes")).expect("parses");
+    assert_eq!(video.developer_payload.as_deref(), Some("order-1"));
+    assert_eq!(video.is_ai_detected, Some(true));
+    assert!(video.error.is_none());
+}
+
+/// Checks the parsed `ai_detection_error_webhook.json`.
+fn assert_detection_error(error: Option<&webhooks::WebhookError>, developer_payload: Option<&str>) {
+    let error = error.expect("error");
+    assert_eq!(error.error_type.as_deref(), Some("invalid_request_error"));
+    assert_eq!(error.id.as_deref(), Some("invalid_file"));
+    assert_eq!(error.code, Some(1));
+    assert_eq!(
+        error.message.as_deref(),
+        Some("The file could not be processed.")
+    );
+    assert!(error.url.is_none());
+    assert!(error.details.is_empty());
+    assert_eq!(developer_payload, Some("order-1"));
+}
+
+#[test]
+fn ai_video_error_webhook() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let video: AiVideoDetectionResponse = parse("ai_detection_error_webhook.json");
+    assert_detection_error(video.error.as_ref(), video.developer_payload.as_deref());
+    assert!(video.model.is_none());
+    assert!(video.is_ai_detected.is_none());
+    assert!(video.summary.is_none());
+}
+
+#[test]
+fn ai_image_async_error_webhook() {
+    use copyleaks::ai_image::AiImageDetectionResponse;
+
+    let image: AiImageDetectionResponse = parse("ai_detection_error_webhook.json");
+    assert_detection_error(image.error.as_ref(), image.developer_payload.as_deref());
+    assert!(image.model.is_none());
+    assert!(image.is_ai_detected.is_none());
+    assert!(image.detected_objects.is_empty());
+}
+
+#[test]
+fn ai_detection_error_with_url_and_details() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let body = json!({
+        "error": {
+            "type": "invalid_request_error",
+            "id": "missing_parameter",
+            "code": 1,
+            "message": "Bad request.",
+            "url": "https://docs.copyleaks.com/using-the-apis/api-errors",
+            "details": [{ "param": "url", "message": "The video could not be downloaded." }]
+        }
+    });
+    let video: AiVideoDetectionResponse =
+        webhooks::parse(&serde_json::to_vec(&body).expect("bytes")).expect("parses");
+    let error = video.error.as_ref().expect("error");
+    assert_eq!(
+        error.url.as_deref(),
+        Some("https://docs.copyleaks.com/using-the-apis/api-errors")
+    );
+    assert_eq!(error.details.len(), 1);
+    assert_eq!(error.details[0].param.as_deref(), Some("url"));
+    assert!(video.developer_payload.is_none());
 }
 
 #[test]
@@ -810,6 +888,7 @@ fn ai_image_async_webhook() {
     assert_eq!(response.detected_objects[0].object.as_deref(), Some("face"));
     assert_eq!(response.developer_payload.as_deref(), Some("order-1"));
     assert_eq!(response.is_ai_detected, Some(true));
+    assert!(response.error.is_none());
 }
 
 #[test]
