@@ -6,14 +6,14 @@ All notable changes to this crate are documented here. The format follows
 
 ## [1.0.0] - 2026-10-12
 
-First release of the Copyleaks Rust SDK, with the same API coverage as the Copyleaks Python SDK.
+First release of the Copyleaks Rust SDK.
 
 ### Added
 
 - Async `Client` with `Client::new()` and `Client::builder()` (custom `reqwest` client, base URLs,
-  tenant, application user agent). The default HTTP client has a 120-second timeout. The SDK's
-  own user agent token is `copyleaks-rust-sdk/1.0.0`. Base URLs must use `https` (`http` only for
-  loopback hosts).
+  application user agent). The default HTTP client has a 120-second timeout. The SDK's own user
+  agent token is `copyleaks-rust-sdk/1.0.0`. Base URLs must use `https` (`http` only for loopback
+  hosts).
 - Bounded response reads: 16 MiB for JSON and 64 MiB for the usage history CSV
   (`Error::ResponseTooLarge`), and up to 1 MiB of an error body kept on the status errors.
 - Login, and a local token expiry check (`AuthToken::verify`) before every authenticated call.
@@ -22,12 +22,10 @@ First release of the Copyleaks Rust SDK, with the same API coverage as the Copyl
 - Plagiarism Checker: submit file, submit OCR, submit URL, export, start, delete, resend webhook,
   credits balance and usage history (CSV).
 - Scan properties `aiSourceMatch` (`AiSourceMatch`), `displayLanguage`
-  (`ScanProperties::display_language`) and `pdf.reportVersion` (`Pdf::report_version`), as in the
-  Python SDK (BAC-5378). The display language and the report version are checked against the
+  (`ScanProperties::display_language`) and `pdf.reportVersion` (`Pdf::report_version`). The display language and the report version are checked against the
   values the server accepts, case-sensitively.
 - Release notes, supported file types and OCR languages.
 - Typed webhook payloads (completed, error, credits checked, indexed, new result, export
   completed), `webhooks::parse`, and the AI Text Detection result of the completed webhook's
   `suspected-ai-text` alert (`CompletedWebhook::ai_detection_result`).
-- The `x-tenant` header, set on the client or per call with `Client::with_tenant`.
 - Client-side validation of scan ids, text lengths (in UTF-16 code units) and request limits.

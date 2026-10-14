@@ -23,7 +23,7 @@ pub fn builder(server: &MockServer) -> ClientBuilder {
         .identity_base_url(server.uri())
 }
 
-/// A client pointed at the mock server, without a tenant.
+/// A client pointed at the mock server.
 pub fn client(server: &MockServer) -> Client {
     builder(server).build().expect("client")
 }

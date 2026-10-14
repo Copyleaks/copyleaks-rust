@@ -28,9 +28,6 @@ pub const DEFAULT_IDENTITY_BASE_URL: &str = "https://id.copyleaks.com";
 /// [`ClientBuilder::user_agent`](method@ClientBuilder::user_agent), if any.
 pub const DEFAULT_USER_AGENT: &str = concat!("copyleaks-rust-sdk/", env!("CARGO_PKG_VERSION"));
 
-/// The header that routes a request to a tenant.
-const TENANT_HEADER: &str = "x-tenant";
-
 /// The timeout of each request of the default HTTP client.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -67,7 +64,6 @@ struct Inner {
 #[derive(Debug, Clone)]
 pub struct Client {
     inner: Arc<Inner>,
-    tenant: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,8 +73,8 @@ enum Server {
 }
 
 impl Client {
-    /// Creates a client with the default settings: the production URLs, no tenant, and an HTTP
-    /// client with a 120-second timeout per request.
+    /// Creates a client with the default settings: the production URLs and an HTTP client with a
+    /// 120-second timeout per request.
     ///
     /// # Errors
     ///
@@ -88,29 +84,9 @@ impl Client {
         Self::builder().build()
     }
 
-    /// Returns a builder to configure the HTTP client, base URLs, tenant and user agent.
+    /// Returns a builder to configure the HTTP client, base URLs and user agent.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
-    }
-
-    /// Returns a client that sends the `x-tenant` header with this tenant on every request.
-    ///
-    /// The returned client shares this client's connection pool, so this is cheap to call per
-    /// request. This client is not changed. An empty tenant sends no header.
-    ///
-    /// The header only routes requests to an environment that Copyleaks directs you to. It does
-    /// not grant access or separate data, so leave it unset unless Copyleaks tells you otherwise.
-    #[must_use]
-    pub fn with_tenant(&self, tenant: impl Into<String>) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-            tenant: Some(tenant.into()),
-        }
-    }
-
-    /// The tenant sent in the `x-tenant` header, if any.
-    pub fn tenant(&self) -> Option<&str> {
-        self.tenant.as_deref().filter(|tenant| !tenant.is_empty())
     }
 
     /// Logs in with your account email and API key, and returns a token valid for 48 hours.
@@ -472,9 +448,6 @@ impl Client {
             .http
             .request(method, url)
             .header(USER_AGENT, self.inner.user_agent.as_str());
-        if let Some(tenant) = self.tenant() {
-            request = request.header(TENANT_HEADER, tenant);
-        }
         if let Some(token) = token {
             token.verify()?;
             request = request.bearer_auth(&token.access_token);
@@ -558,7 +531,6 @@ async fn read_up_to(response: &mut Response, limit: usize, body: &mut Vec<u8>) -
 /// ```
 /// # fn run() -> Result<(), copyleaks::Error> {
 /// let client = copyleaks::Client::builder()
-///     .tenant("my-tenant")
 ///     .user_agent("my-app/1.0")
 ///     .build()?;
 /// # Ok(())
@@ -569,7 +541,6 @@ pub struct ClientBuilder {
     http_client: Option<reqwest::Client>,
     api_base_url: Option<String>,
     identity_base_url: Option<String>,
-    tenant: Option<String>,
     user_agent: Option<String>,
 }
 
@@ -599,14 +570,6 @@ impl ClientBuilder {
     #[must_use]
     pub fn identity_base_url(mut self, url: impl Into<String>) -> Self {
         self.identity_base_url = Some(url.into());
-        self
-    }
-
-    /// Sends the `x-tenant` header with this tenant on every request. Not set by default.
-    /// Override it per call with [`Client::with_tenant`].
-    #[must_use]
-    pub fn tenant(mut self, tenant: impl Into<String>) -> Self {
-        self.tenant = Some(tenant.into());
         self
     }
 
@@ -652,7 +615,6 @@ impl ClientBuilder {
                 identity_base,
                 user_agent,
             }),
-            tenant: self.tenant,
         })
     }
 }

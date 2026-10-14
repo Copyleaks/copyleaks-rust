@@ -1,10 +1,10 @@
 //! One test per endpoint, against a local mock server. Each test checks the HTTP method, the
-//! path, the headers (Authorization, User-Agent, no x-tenant by default), the exact JSON body,
-//! and the decoded response.
+//! path, the headers (Authorization, User-Agent), the exact JSON body, and the decoded response.
+//! It also tests the application user agent and a custom HTTP client.
 
 mod common;
 
-use common::{client, fixture, token, NoHeader, BEARER, LIONS};
+use common::{builder, client, fixture, token, NoHeader, BEARER, LIONS};
 use copyleaks::ai_image::{AiImageDetectionRequest, AI_IMAGE_1_ULTRA};
 use copyleaks::ai_text::AiTextDetectionRequest;
 use copyleaks::grammar::{GrammarCheckRequest, ScoreWeights};
@@ -20,12 +20,11 @@ use wiremock::{Mock, MockBuilder, MockServer, ResponseTemplate};
 
 const WEBHOOK: &str = "https://example.com/webhook/{STATUS}";
 
-/// Matches the method, the path, the SDK user agent, and the absence of the tenant header.
+/// Matches the method, the path, and the SDK user agent.
 fn route(verb: &str, url_path: &str) -> MockBuilder {
     Mock::given(method(verb))
         .and(path(url_path))
         .and(header("user-agent", DEFAULT_USER_AGENT))
-        .and(NoHeader("x-tenant"))
 }
 
 /// [`route`] for an authenticated JSON call.
@@ -607,4 +606,42 @@ async fn text_moderation() {
             .and_then(|document| document.total_words),
         Some(86)
     );
+}
+
+#[tokio::test]
+async fn app_user_agent_goes_before_the_sdk_token() {
+    let server = MockServer::start().await;
+    let expected = format!("my-app/1.0 {DEFAULT_USER_AGENT}");
+    Mock::given(method("GET"))
+        .and(path("/v3/release-logs.json"))
+        .and(header("user-agent", expected.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "updates": [] })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = builder(&server)
+        .user_agent(" my-app/1.0 ")
+        .build()
+        .expect("client");
+
+    client.release_notes().await.expect("release notes");
+}
+
+#[tokio::test]
+async fn custom_http_client_is_used() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v3/release-logs.json"))
+        .and(header("user-agent", DEFAULT_USER_AGENT))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "updates": [] })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let http = copyleaks::reqwest::Client::builder()
+        .user_agent("ignored-default-agent")
+        .build()
+        .expect("reqwest client");
+    let client = builder(&server).http_client(http).build().expect("client");
+
+    client.release_notes().await.expect("release notes");
 }

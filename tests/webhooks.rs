@@ -1,5 +1,5 @@
 //! Webhook payload parsing, with the examples from the API docs, and the AI alert extraction of
-//! the completed webhook (BAC-5392 parity).
+//! the completed webhook.
 
 mod common;
 

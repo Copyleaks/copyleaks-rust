@@ -175,24 +175,9 @@ for entry in &response.legend {
 }
 ```
 
-## Tenant header
-
-To send requests to a specific tenant, set the `x-tenant` header on the client, or per call with
-`with_tenant`. A per-call tenant overrides the client tenant. When no tenant is set, the header is
-not sent.
-
-```rust
-let client = copyleaks::Client::builder().tenant("my-tenant").build()?;
-let other = client.with_tenant("other-tenant"); // cheap: shares the connection pool
-let balance = other.credits_balance(&token).await?;
-```
-
-The header only routes requests to an environment that Copyleaks directs you to. It does not grant
-access or separate data, so leave it unset unless Copyleaks tells you otherwise.
-
 ## Configuration
 
-`Client::builder()` also takes:
+`Client::builder()` takes:
 
 - `http_client`: your own `reqwest::Client`. The default client has a 120-second timeout per
   request and trusts only the Mozilla root certificates (rustls with webpki roots). Behind a
