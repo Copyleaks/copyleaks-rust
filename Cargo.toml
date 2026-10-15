@@ -1,6 +1,6 @@
 [package]
 name = "copyleaks"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Copyleaks is the integrity layer for your tech stack that helps organizations and individuals understand what's human-made and original, AI-generated, or manipulated across text, image, audio and video."
@@ -12,12 +12,15 @@ categories = ["api-bindings"]
 
 [dependencies]
 base64 = "0.22"
+bytes = "1"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "gzip", "multipart"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 
 [dev-dependencies]
+flate2 = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6"

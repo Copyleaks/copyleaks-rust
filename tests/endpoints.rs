@@ -322,7 +322,7 @@ async fn release_notes() {
 #[tokio::test]
 async fn supported_file_types() {
     let server = MockServer::start().await;
-    public("GET", "/v3/miscellaneous/supported-file-types")
+    public("GET", "/v3/miscellaneous/supported-plagiarism-file-types")
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "textual": ["pdf", "docx", "txt"],
             "ocr": ["png", "jpg"]
@@ -358,6 +358,7 @@ async fn ocr_supported_languages() {
 }
 
 #[tokio::test]
+#[allow(deprecated)]
 async fn ai_text_detection() {
     let server = MockServer::start().await;
     authed("POST", "/v2/writer-detector/scan-1/check")
@@ -644,4 +645,237 @@ async fn custom_http_client_is_used() {
     let client = builder(&server).http_client(http).build().expect("client");
 
     client.release_notes().await.expect("release notes");
+}
+
+#[tokio::test]
+async fn submit_url_with_verb_and_headers() {
+    let server = MockServer::start().await;
+    authed("PUT", "/v3/scans/submit/url/scan-url-2")
+        .and(header("content-type", "application/json"))
+        .and(body_json(json!({
+            "url": "https://example.com/private",
+            "verb": "POST",
+            "headers": [["Cookie", "session=abc"], ["X-Key", "1"]],
+            "properties": sandbox_properties_json()
+        })))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let submission = UrlSubmission::new("https://example.com/private", sandbox_properties())
+        .verb("POST")
+        .headers(vec![
+            ("Cookie".to_owned(), "session=abc".to_owned()),
+            ("X-Key".to_owned(), "1".to_owned()),
+        ]);
+    client(&server)
+        .submit_url(&token(), "scan-url-2", &submission)
+        .await
+        .expect("submit URL");
+}
+
+#[tokio::test]
+async fn export_with_every_target_and_webhook_headers() {
+    let server = MockServer::start().await;
+    let target = |name: &str| json!({ "endpoint": format!("https://example.com/export/{name}"), "verb": "PUT" });
+    authed("POST", "/v3/downloads/scan-1/export/export-2")
+        .and(body_json(json!({
+            "completionWebhook": "https://example.com/export/done",
+            "completionWebhookHeaders": [["Authorization", "Bearer abc"]],
+            "pdfReport": target("pdf"),
+            "aiDetection": target("ai"),
+            "writingFeedback": target("writing"),
+            "overview": {
+                "endpoint": "https://example.com/export/overview",
+                "verb": "PUT",
+                "headers": [["key", "value"]]
+            },
+            "crawledVersion": target("crawled")
+        })))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let target =
+        |name: &str| ExportTarget::new(format!("https://example.com/export/{name}"), "PUT");
+    let export = Export::new("https://example.com/export/done")
+        .completion_webhook_headers(vec![("Authorization".to_owned(), "Bearer abc".to_owned())])
+        .pdf_report(target("pdf"))
+        .ai_detection(target("ai"))
+        .writing_feedback(target("writing"))
+        .overview(target("overview").headers(vec![("key".to_owned(), "value".to_owned())]))
+        .crawled_version(target("crawled"));
+    client(&server)
+        .export(&token(), "scan-1", "export-2", &export)
+        .await
+        .expect("export");
+}
+
+#[tokio::test]
+async fn submit_file_sends_the_new_scan_properties() {
+    use copyleaks::plagiarism::{
+        AiGeneratedText, AiGeneratedTextExplain, Assignment, Course, Indexing, Institution,
+        InternalAiSourceMatch, Overview, References, Scanning, ScanningExclude, ScanningInclude,
+        SensitiveDataProtection, WritingFeedback,
+    };
+
+    let server = MockServer::start().await;
+    authed("PUT", "/v3/scans/submit/file/scan-file-2")
+        .and(body_json(json!({
+            "base64": "SGVsbG8gd29ybGQ=",
+            "filename": "hello.txt",
+            "properties": {
+                "webhooks": { "status": WEBHOOK },
+                "sandbox": true,
+                "scanTimeZone": "America/New_York",
+                "course": { "id": "cs-101" },
+                "assignment": { "id": "essay-1" },
+                "institution": { "id": "uni-1" },
+                "scanning": {
+                    "exclude": { "backlinksDomains": ["spam.example"], "text": ["lorem"] },
+                    "include": { "idPattern": "class-a*" }
+                },
+                "indexing": { "copyleaksDb": true },
+                "aiGeneratedText": { "detect": true, "sensitivity": 3, "explain": { "enable": true } },
+                "sensitiveDataProtection": { "emailAddress": true, "phoneNumber": false },
+                "writingFeedback": { "enable": true, "score": { "grammarScoreWeight": 0.5 } },
+                "overview": { "enable": true, "ignoreAIDetection": true },
+                "internalAiSourceMatch": { "enable": true },
+                "references": { "validate": true }
+            }
+        })))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let properties = sandbox_properties()
+        .scan_time_zone("America/New_York")
+        .course(Course::new("cs-101"))
+        .assignment(Assignment::new("essay-1"))
+        .institution(Institution::new("uni-1"))
+        .scanning(
+            Scanning::default()
+                .exclude(
+                    ScanningExclude::default()
+                        .backlinks_domains(vec!["spam.example".to_owned()])
+                        .text(vec!["lorem".to_owned()]),
+                )
+                .include(ScanningInclude::default().id_pattern("class-a*")),
+        )
+        .indexing(Indexing::default().copyleaks_db(true))
+        .ai_generated_text(
+            AiGeneratedText::default()
+                .detect(true)
+                .sensitivity(3)
+                .explain(AiGeneratedTextExplain::default().enable(true)),
+        )
+        .sensitive_data_protection(
+            SensitiveDataProtection::default()
+                .email_address(true)
+                .phone_number(false),
+        )
+        .writing_feedback(
+            WritingFeedback::default()
+                .enable(true)
+                .score(ScoreWeights::default().grammar_score_weight(0.5)),
+        )
+        .overview(Overview::default().enable(true).ignore_ai_detection(true))
+        .internal_ai_source_match(InternalAiSourceMatch::default().enable(true))
+        .references(References::default().validate(true));
+    let submission = FileSubmission::from_bytes("Hello world", "hello.txt", properties);
+    client(&server)
+        .submit_file(&token(), "scan-file-2", &submission)
+        .await
+        .expect("submit file");
+}
+
+#[tokio::test]
+async fn ai_image_detection_mask_type_and_object_detection() {
+    use copyleaks::ai_image::{MaskType, ObjectDetection};
+
+    let server = MockServer::start().await;
+    authed("POST", "/v1/ai-image-detector/scan-2/check")
+        .and(header("content-type", "application/json"))
+        .and(body_json(json!({
+            "base64": "aW1hZ2U=",
+            "filename": "image.png",
+            "model": "ai-image-1-ultra",
+            "sandbox": true,
+            "maskType": "heatmap",
+            "objectDetection": [{ "object": "face" }, { "object": "hand" }]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "model": "ai-image-1-ultra",
+            "result": { "starts": [0, 10], "lengths": [5, 5], "labels": [4, 2] },
+            "summary": { "human": 0.3, "ai": 0.7 },
+            "isAiDetected": true,
+            "detectedObjects": [
+                { "object": "face", "mask": { "starts": [1024, 3072], "lengths": [512, 256] } },
+                null
+            ]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let request = AiImageDetectionRequest::from_bytes("image", "image.png", AI_IMAGE_1_ULTRA)
+        .sandbox(true)
+        .mask_type(MaskType::Heatmap)
+        .object_detection(vec![
+            ObjectDetection::new("face"),
+            ObjectDetection::new("hand"),
+        ]);
+    let response = client(&server)
+        .ai_image_detection(&token(), "scan-2", &request)
+        .await
+        .expect("AI Image Detection");
+
+    let mask = response.result.as_ref().expect("mask");
+    assert_eq!(mask.labels.as_deref(), Some(&[4, 2][..]));
+    assert_eq!(
+        response.detected_objects.len(),
+        1,
+        "null entries are skipped"
+    );
+    let face = &response.detected_objects[0];
+    assert_eq!(face.object.as_deref(), Some("face"));
+    let face_mask = face.mask.as_ref().expect("face mask");
+    assert_eq!(face_mask.starts, [1024, 3072]);
+    assert_eq!(face_mask.lengths, [512, 256]);
+    assert_eq!(face_mask.labels, None);
+}
+
+#[tokio::test]
+async fn ai_image_detection_with_mask_type_none_has_no_result() {
+    use copyleaks::ai_image::MaskType;
+
+    let server = MockServer::start().await;
+    authed("POST", "/v1/ai-image-detector/scan-3/check")
+        .and(body_json(json!({
+            "base64": "aW1hZ2U=",
+            "filename": "image.png",
+            "model": "ai-image-1-ultra",
+            "maskType": "none"
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "model": "ai-image-1-ultra",
+            "summary": { "human": 1.0, "ai": 0.0 },
+            "isAiDetected": false
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let request = AiImageDetectionRequest::new("aW1hZ2U=", "image.png", AI_IMAGE_1_ULTRA)
+        .mask_type(MaskType::None);
+    let response = client(&server)
+        .ai_image_detection(&token(), "scan-3", &request)
+        .await
+        .expect("AI Image Detection");
+    assert!(response.result.is_none());
+    assert!(response.detected_objects.is_empty());
+    assert_eq!(response.is_ai_detected, Some(false));
 }

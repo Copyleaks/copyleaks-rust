@@ -48,6 +48,7 @@ pub const LANGUAGE_ENGLISH: &str = "en";
 /// A text to moderate, for [`Client::text_moderation`](crate::Client::text_moderation).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TextModerationRequest {
     /// The text. From 2 to 25,000 characters.
     pub text: String,
@@ -94,6 +95,7 @@ setters!(TextModerationRequest {
 
 /// A moderation label to check.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct TextModerationLabel {
     /// The label id, for example [`labels::TOXIC_V1`].
     pub id: String,
@@ -106,9 +108,10 @@ impl TextModerationLabel {
     }
 }
 
-/// The result of Text Moderation. Missing fields are `None`.
+/// The result of Text Moderation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TextModerationResponse {
     /// The version of the moderation model.
     #[serde(default, deserialize_with = "de::opt_string_or_number")]
@@ -124,6 +127,7 @@ pub struct TextModerationResponse {
 
 /// The labelled segments of the text.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Moderations {
     /// Segments of the plain text.
     pub text: Option<ModeratedText>,
@@ -131,6 +135,7 @@ pub struct Moderations {
 
 /// Segments of the plain text.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ModeratedText {
     /// Character positions of the segments.
     pub chars: Option<ModerationRanges>,
@@ -139,6 +144,7 @@ pub struct ModeratedText {
 /// Labelled segments as parallel lists: segment `i` starts at `starts[i]`, is `lengths[i]`
 /// characters long, and has the label at index `labels[i]` of the legend.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ModerationRanges {
     /// The label index of each segment. Resolve it with [`TextModerationResponse::legend`].
     #[serde(default, deserialize_with = "de::null_as_default")]
@@ -153,6 +159,7 @@ pub struct ModerationRanges {
 
 /// A legend entry: a label index and its id.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct LegendEntry {
     /// The label index used in [`ModerationRanges::labels`].
     pub index: Option<i32>,

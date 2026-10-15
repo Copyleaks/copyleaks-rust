@@ -1,20 +1,22 @@
 //! Plagiarism Checker: submit files, URLs and images (OCR) for a scan, and manage your scans.
-//!
-//! A submit returns as soon as Copyleaks accepts the scan. Copyleaks then reports the scan result
-//! to the status webhook in [`ScanProperties::webhooks`](field@ScanProperties::webhooks); parse
-//! that payload with [`crate::webhooks`].
+//! Results arrive at the status webhook; parse them with [`crate::webhooks`].
 
-use base64::Engine as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::body::{Content, UploadBody};
+use crate::grammar::ScoreWeights;
 use crate::{validate, Result};
 
+pub use crate::common::Headers;
+
 /// A file to scan, for [`Client::submit_file`](crate::Client::submit_file).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct FileSubmission {
-    /// The file content, base64-encoded. To scan plain text, base64-encode the text.
-    pub base64: String,
+    /// The file content. Sent base64-encoded as `base64`.
+    #[serde(rename = "base64")]
+    content: Content,
     /// The file name as it appears in the scan report, with the extension that matches the
     /// file type. At most 255 characters.
     pub filename: String,
@@ -30,35 +32,59 @@ impl FileSubmission {
         properties: ScanProperties,
     ) -> Self {
         Self {
-            base64: base64.into(),
+            content: Content::base64(base64),
             filename: filename.into(),
             properties,
         }
     }
 
-    /// Creates a submission from raw bytes, which it base64-encodes.
+    /// Creates a submission from the raw file bytes, or plain text. A `Vec<u8>` or `String` is
+    /// taken without a copy and base64-encoded only when sent.
     pub fn from_bytes(
-        content: impl AsRef<[u8]>,
+        content: impl Into<Vec<u8>>,
         filename: impl Into<String>,
         properties: ScanProperties,
     ) -> Self {
-        Self::new(encode(content), filename, properties)
+        Self {
+            content: Content::raw(content),
+            filename: filename.into(),
+            properties,
+        }
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
-        validate::required(&self.base64, "base64")?;
+        if self.content.is_empty() {
+            return Err(crate::Error::Validation("base64 is required".to_owned()));
+        }
         validate::length(&self.filename, "filename", 1, 255)?;
         self.properties.validate()
+    }
+
+    pub(crate) fn upload_body(&self) -> Result<UploadBody> {
+        #[derive(Serialize)]
+        struct Rest<'a> {
+            filename: &'a str,
+            properties: &'a ScanProperties,
+        }
+        UploadBody::new(
+            &self.content,
+            &Rest {
+                filename: &self.filename,
+                properties: &self.properties,
+            },
+        )
     }
 }
 
 /// An image or scanned document whose text is extracted with OCR and then scanned,
 /// for [`Client::submit_file_ocr`](crate::Client::submit_file_ocr).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct OcrSubmission {
-    /// The file content, base64-encoded.
-    pub base64: String,
+    /// The file content. Sent base64-encoded as `base64`.
+    #[serde(rename = "base64")]
+    content: Content,
     /// The file name as it appears in the scan report, with the extension that matches the
     /// file type. At most 255 characters.
     pub filename: String,
@@ -78,37 +104,70 @@ impl OcrSubmission {
         properties: ScanProperties,
     ) -> Self {
         Self {
-            base64: base64.into(),
+            content: Content::base64(base64),
             filename: filename.into(),
             lang_code: lang_code.into(),
             properties,
         }
     }
 
-    /// Creates an OCR submission from raw bytes, which it base64-encodes.
+    /// Creates an OCR submission from the raw file bytes, taking a `Vec<u8>` without a copy.
     pub fn from_bytes(
-        content: impl AsRef<[u8]>,
+        content: impl Into<Vec<u8>>,
         filename: impl Into<String>,
         lang_code: impl Into<String>,
         properties: ScanProperties,
     ) -> Self {
-        Self::new(encode(content), filename, lang_code, properties)
+        Self {
+            content: Content::raw(content),
+            filename: filename.into(),
+            lang_code: lang_code.into(),
+            properties,
+        }
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
-        validate::required(&self.base64, "base64")?;
+        if self.content.is_empty() {
+            return Err(crate::Error::Validation("base64 is required".to_owned()));
+        }
         validate::length(&self.filename, "filename", 1, 255)?;
         validate::required(&self.lang_code, "langCode")?;
         self.properties.validate()
     }
+
+    pub(crate) fn upload_body(&self) -> Result<UploadBody> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Rest<'a> {
+            filename: &'a str,
+            lang_code: &'a str,
+            properties: &'a ScanProperties,
+        }
+        UploadBody::new(
+            &self.content,
+            &Rest {
+                filename: &self.filename,
+                lang_code: &self.lang_code,
+                properties: &self.properties,
+            },
+        )
+    }
 }
 
 /// A web page to scan, for [`Client::submit_url`](crate::Client::submit_url).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct UrlSubmission {
     /// The URL to scan, for example `https://copyleaks.com`.
     pub url: String,
+    /// The HTTP method to fetch the URL: `GET` (server default), `POST` or `PUT`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verb: Option<String>,
+    /// Headers Copyleaks sends when it fetches the URL, such as `Cookie` or `Authorization`. When
+    /// set, Copyleaks sends no headers of its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<Headers>,
     /// The scan configuration.
     pub properties: ScanProperties,
 }
@@ -118,34 +177,42 @@ impl UrlSubmission {
     pub fn new(url: impl Into<String>, properties: ScanProperties) -> Self {
         Self {
             url: url.into(),
+            verb: None,
+            headers: None,
             properties,
         }
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
         validate::required(&self.url, "url")?;
+        if let Some(verb) = &self.verb {
+            validate::verb(verb, "verb")?;
+        }
         self.properties.validate()
     }
 }
 
-fn encode(content: impl AsRef<[u8]>) -> String {
-    base64::engine::general_purpose::STANDARD.encode(content)
-}
+setters!(UrlSubmission {
+    verb: String,
+    headers: Headers,
+});
 
 /// The configuration of a plagiarism scan. Only the status webhook is required.
 ///
 /// ```
-/// use copyleaks::plagiarism::{AiGeneratedText, ScanProperties};
+/// use copyleaks::plagiarism::{AiGeneratedText, ScanProperties, WritingFeedback};
 ///
 /// let properties = ScanProperties::new("https://your.server/webhook/{STATUS}")
 ///     .sandbox(true)
 ///     .expiration(480)
 ///     .sensitivity_level(3)
-///     .ai_generated_text(AiGeneratedText::default().detect(true));
+///     .ai_generated_text(AiGeneratedText::default().detect(true).sensitivity(2))
+///     .writing_feedback(WritingFeedback::default().enable(true));
 /// assert_eq!(properties.expiration, Some(480));
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ScanProperties {
     /// The webhooks that Copyleaks calls with the scan status and new results.
     pub webhooks: SubmitWebhooks,
@@ -164,9 +231,22 @@ pub struct ScanProperties {
     /// How long, in hours, Copyleaks keeps the scan after it completes. From 1 to 2880.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expiration: Option<u32>,
+    /// Time zone of the scan time in the PDF report: a case-sensitive IANA name such as
+    /// `America/New_York`. Server default: your country's time zone, or UTC.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scan_time_zone: Option<String>,
     /// The author of the content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>,
+    /// The course the content belongs to, for analytics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub course: Option<Course>,
+    /// The assignment the content belongs to, for analytics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignment: Option<Assignment>,
+    /// The institution the content belongs to, for analytics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institution: Option<Institution>,
     /// Which kinds of results to include in the report.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<Filters>,
@@ -182,9 +262,8 @@ pub struct ScanProperties {
     /// PDF report settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf: Option<Pdf>,
-    /// The language of the scan's PDF report: `en`, `es`, `pt`, `fr`, `de` or `it`. Lowercase
-    /// and case-sensitive. It is stored with the scan, so it also applies to a PDF report
-    /// requested later. Use `None` for the server default, `en`.
+    /// The PDF report language, lowercase: `en` (server default), `es`, `pt`, `fr`, `de` or `it`.
+    /// Stored with the scan, so it also applies to a report requested later.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_language: Option<String>,
     /// Plagiarism sensitivity, from 1 (faster) to 5 (slower, finds the smallest matches).
@@ -202,18 +281,36 @@ pub struct ScanProperties {
     /// [`CompletedWebhook::ai_detection_result`](crate::webhooks::CompletedWebhook::ai_detection_result).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_generated_text: Option<AiGeneratedText>,
-    /// AI Source Match settings: find online sources suspected of containing AI-generated text.
-    /// Server default: off.
+    /// Sensitive data masking. Available on plans of 2500 pages or more.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensitive_data_protection: Option<SensitiveDataProtection>,
+    /// Grammar Checker settings. The scores arrive in the completed webhook's
+    /// [`writing_feedback`](field@crate::webhooks::CompletedWebhook::writing_feedback).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub writing_feedback: Option<WritingFeedback>,
+    /// Gen-AI Overview settings. Export the overview with
+    /// [`Export::overview`](field@Export::overview).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overview: Option<Overview>,
+    /// AI Source Match settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_source_match: Option<AiSourceMatch>,
+    /// Internal AI Source Match settings. The matches arrive in
+    /// [`Results::internal_ai_data`](field@crate::webhooks::Results::internal_ai_data).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub internal_ai_source_match: Option<InternalAiSourceMatch>,
+    /// Citation Checker settings. The summary arrives in the completed webhook's
+    /// [`references_validation`](field@crate::webhooks::CompletedWebhook::references_validation).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub references: Option<References>,
     /// Custom properties attached to the document in a Private Cloud Hub.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_metadata: Option<Vec<CustomMetadata>>,
 }
 
 impl ScanProperties {
-    /// Creates scan properties with the status webhook URL. Use the `{STATUS}` placeholder,
-    /// for example `https://your.server/webhook/{STATUS}`.
+    /// Creates scan properties with the status webhook URL, such as
+    /// `https://your.server/webhook/{STATUS}`.
     pub fn new(status_webhook: impl Into<String>) -> Self {
         Self {
             webhooks: SubmitWebhooks::new(status_webhook),
@@ -228,7 +325,7 @@ impl ScanProperties {
         self
     }
 
-    /// Sets the `expiration` field, in hours (1 to 2880).
+    /// Sets the `expiration` field.
     #[must_use]
     pub fn expiration(mut self, hours: u32) -> Self {
         self.expiration = Some(hours);
@@ -249,6 +346,21 @@ impl ScanProperties {
         if let Some(language) = &self.display_language {
             validate::one_of(language, "properties.displayLanguage", DISPLAY_LANGUAGES)?;
         }
+        for (id, name) in [
+            (self.course.as_ref().map(|c| &c.id), "properties.course.id"),
+            (
+                self.assignment.as_ref().map(|a| &a.id),
+                "properties.assignment.id",
+            ),
+            (
+                self.institution.as_ref().map(|i| &i.id),
+                "properties.institution.id",
+            ),
+        ] {
+            if let Some(id) = id {
+                validate::entity_id(id, name)?;
+            }
+        }
         if let Some(version) = self
             .pdf
             .as_ref()
@@ -256,13 +368,27 @@ impl ScanProperties {
         {
             validate::one_of(version, "properties.pdf.reportVersion", REPORT_VERSIONS)?;
         }
-        let id_pattern = self
-            .scanning
+        if let Some(scanning) = &self.scanning {
+            scanning.validate()?;
+        }
+        if let Some(sensitivity) = self
+            .ai_generated_text
             .as_ref()
-            .and_then(|scanning| scanning.exclude.as_ref())
-            .and_then(|exclude| exclude.id_pattern.as_deref());
-        if let Some(pattern) = id_pattern {
-            validate::length(pattern, "properties.scanning.exclude.idPattern", 1, 36)?;
+            .and_then(|ai| ai.sensitivity)
+        {
+            validate::range(
+                u32::from(sensitivity),
+                "properties.aiGeneratedText.sensitivity",
+                1,
+                3,
+            )?;
+        }
+        if let Some(score) = self
+            .writing_feedback
+            .as_ref()
+            .and_then(|feedback| feedback.score.as_ref())
+        {
+            score.validate("properties.writingFeedback.score")?;
         }
         Ok(())
     }
@@ -273,7 +399,11 @@ setters!(ScanProperties {
     include_html: bool,
     developer_payload: String,
     sandbox: bool,
+    scan_time_zone: String,
     author: Author,
+    course: Course,
+    assignment: Assignment,
+    institution: Institution,
     filters: Filters,
     scanning: Scanning,
     indexing: Indexing,
@@ -284,7 +414,12 @@ setters!(ScanProperties {
     cheat_detection: bool,
     scan_method_algorithm: ScanMethodAlgorithm,
     ai_generated_text: AiGeneratedText,
+    sensitive_data_protection: SensitiveDataProtection,
+    writing_feedback: WritingFeedback,
+    overview: Overview,
     ai_source_match: AiSourceMatch,
+    internal_ai_source_match: InternalAiSourceMatch,
+    references: References,
     custom_metadata: Vec<CustomMetadata>,
 });
 
@@ -294,12 +429,10 @@ const DISPLAY_LANGUAGES: &[&str] = &["en", "es", "pt", "fr", "de", "it"];
 /// The values the server accepts for `properties.pdf.reportVersion`.
 const REPORT_VERSIONS: &[&str] = &["v1", "v2", "v3", "latest"];
 
-/// A list of HTTP headers, each a `(name, value)` pair. Serialized as `[["name", "value"], ...]`.
-pub type Headers = Vec<(String, String)>;
-
 /// The webhooks of a scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SubmitWebhooks {
     /// Called when the scan status changes. `{STATUS}` in the URL is replaced with `completed`,
     /// `error`, `creditschecked` or `indexed`.
@@ -365,7 +498,8 @@ int_enum! {
 }
 
 int_enum! {
-    /// The masking policy of a document indexed to a Private Cloud Hub.
+    /// The masking policy of a document indexed to a Private Cloud Hub, and of a hub
+    /// ([`RepositoryInfo::masking_policy`](field@crate::repositories::RepositoryInfo::masking_policy)).
     MaskingPolicy {
         /// Do not mask the document.
         NoMask = 0,
@@ -378,6 +512,7 @@ int_enum! {
 
 int_enum! {
     /// The PDF report version (`properties.pdf.version`).
+    #[deprecated(note = "deprecated by the API: use `Pdf::report_version` instead")]
     PdfVersion {
         /// Version 1.
         V1 = 1,
@@ -390,6 +525,7 @@ int_enum! {
 
 /// The author of the scanned content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct Author {
     /// A unique id for the author. Use the same id for the same author.
     pub id: String,
@@ -402,9 +538,58 @@ impl Author {
     }
 }
 
+/// The course of the scanned content, for analytics.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Course {
+    /// A unique id for the course. At most 64 characters from `a-z`, `0-9` and
+    /// `!@$&=_()';:.,~-`.
+    pub id: String,
+}
+
+impl Course {
+    /// Creates a course.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
+/// The assignment of the scanned content, for analytics.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Assignment {
+    /// A unique id for the assignment. At most 64 characters from `a-z`, `0-9` and
+    /// `!@$&=_()';:.,~-`.
+    pub id: String,
+}
+
+impl Assignment {
+    /// Creates an assignment.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
+/// The institution of the scanned content, for analytics.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Institution {
+    /// A unique id for the institution. At most 64 characters from `a-z`, `0-9` and
+    /// `!@$&=_()';:.,~-`.
+    pub id: String,
+}
+
+impl Institution {
+    /// Creates an institution.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
 /// Which kinds of results to include in the report.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Filters {
     /// Match identical words.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -455,13 +640,17 @@ setters!(Filters {
 /// The sources to compare the document against.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Scanning {
     /// Compare with online sources.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub internet: Option<bool>,
-    /// Exclude some of your own submissions from the results.
+    /// Exclude some results.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude: Option<ScanningExclude>,
+    /// Include only some of your own submissions in the results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include: Option<ScanningInclude>,
     /// Private Cloud Hubs to compare against.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repositories: Option<Vec<SearchRepository>>,
@@ -473,29 +662,87 @@ pub struct Scanning {
     pub cross_languages: Option<CrossLanguages>,
 }
 
+impl Scanning {
+    fn validate(&self) -> Result<()> {
+        if let Some(exclude) = &self.exclude {
+            if let Some(pattern) = &exclude.id_pattern {
+                validate::length(pattern, "properties.scanning.exclude.idPattern", 1, 36)?;
+            }
+            if let Some(domains) = &exclude.backlinks_domains {
+                validate::string_list(
+                    domains,
+                    "properties.scanning.exclude.backlinksDomains",
+                    10,
+                    1,
+                    256,
+                )?;
+            }
+            if let Some(text) = &exclude.text {
+                validate::string_list(text, "properties.scanning.exclude.text", 5, 1, 30)?;
+            }
+        }
+        if let Some(pattern) = self
+            .include
+            .as_ref()
+            .and_then(|include| include.id_pattern.as_ref())
+        {
+            validate::length(pattern, "properties.scanning.include.idPattern", 1, 36)?;
+        }
+        Ok(())
+    }
+}
+
 setters!(Scanning {
     internet: bool,
     exclude: ScanningExclude,
+    include: ScanningInclude,
     repositories: Vec<SearchRepository>,
     copyleaks_db: CopyleaksDb,
     cross_languages: CrossLanguages,
 });
 
-/// Submissions to exclude from the results.
+/// Results to exclude.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ScanningExclude {
     /// Exclude submissions whose scan id matches this pattern, 1 to 36 characters. `*` matches
     /// any number of characters and `.` matches exactly one, for example `abc*`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id_pattern: Option<String>,
+    /// Exclude results that contain backlinks to these domains. At most 10, each 1 to 256
+    /// characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backlinks_domains: Option<Vec<String>>,
+    /// Exclude results that contain any of these phrases. At most 5, each 1 to 30 characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<Vec<String>>,
 }
 
-setters!(ScanningExclude { id_pattern: String });
+setters!(ScanningExclude {
+    id_pattern: String,
+    backlinks_domains: Vec<String>,
+    text: Vec<String>,
+});
+
+/// Submissions to include in the results.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ScanningInclude {
+    /// Include results from your submissions and Private Cloud Hubs only when their scan id
+    /// matches this pattern, 1 to 36 characters. `*` matches any number of characters and `.`
+    /// matches exactly one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_pattern: Option<String>,
+}
+
+setters!(ScanningInclude { id_pattern: String });
 
 /// A Private Cloud Hub to compare the document against.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SearchRepository {
     /// The repository id of the Private Cloud Hub.
     pub id: String,
@@ -525,6 +772,7 @@ setters!(SearchRepository {
 /// Comparison against the Shared Data Hub.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CopyleaksDb {
     /// Also compare against content that you uploaded to the Shared Data Hub.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -539,8 +787,10 @@ setters!(CopyleaksDb {
     include_others_submissions: bool,
 });
 
-/// Cross-language plagiarism detection.
+/// Cross-language plagiarism detection. See
+/// [`Client::allowed_cross_languages`](crate::Client::allowed_cross_languages) for the languages.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct CrossLanguages {
     /// The additional languages to scan against. Do not include the document's own language.
     pub languages: Vec<Language>,
@@ -557,6 +807,7 @@ impl CrossLanguages {
 
 /// A language for cross-language plagiarism detection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct Language {
     /// The language code, for example `fr`.
     pub code: String,
@@ -571,19 +822,26 @@ impl Language {
 
 /// Where to index the document.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Indexing {
     /// The Private Cloud Hubs to index the document to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repositories: Option<Vec<IndexingRepository>>,
+    /// Also add the document to the Copyleaks Shared Data Hub. Server default: `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copyleaks_db: Option<bool>,
 }
 
 setters!(Indexing {
     repositories: Vec<IndexingRepository>,
+    copyleaks_db: bool,
 });
 
 /// A Private Cloud Hub to index the document to.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct IndexingRepository {
     /// The repository id of the Private Cloud Hub.
     pub id: String,
@@ -610,6 +868,7 @@ setters!(IndexingRepository {
 /// Parts of the document not to scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Exclude {
     /// Exclude quoted text.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -650,6 +909,7 @@ setters!(Exclude {
 
 /// Parts of source code not to scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct ExcludeCode {
     /// Exclude code comments.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -661,6 +921,8 @@ setters!(ExcludeCode { comments: bool });
 /// PDF report settings.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+#[allow(deprecated)]
 pub struct Pdf {
     /// Create a PDF report for the scan.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -674,13 +936,13 @@ pub struct Pdf {
     /// Align the report text from right to left.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rtl: Option<bool>,
-    /// The report version. Deprecated by the API in favor of
-    /// [`Pdf::report_version`](field@Pdf::report_version), which overrides it.
+    /// The report version, deprecated by the API in favor of
+    /// [`Pdf::report_version`](field@Pdf::report_version).
+    #[deprecated(note = "deprecated by the API: use `Pdf::report_version` instead")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<PdfVersion>,
-    /// The report version: `v1`, `v2`, `v3` or `latest`. Lowercase and case-sensitive. Overrides
-    /// [`Pdf::version`](field@Pdf::version). When neither is set, accounts created before
-    /// 2025-05-15 get `v1` and newer accounts get `latest`.
+    /// The report version, lowercase: `v1`, `v2`, `v3` or `latest`. Overrides `version`. When
+    /// neither is set, accounts created before 2025-05-15 get `v1` and newer ones `latest`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub report_version: Option<String>,
     /// The report colors.
@@ -693,30 +955,47 @@ setters!(Pdf {
     title: String,
     large_logo: String,
     rtl: bool,
-    version: PdfVersion,
     report_version: String,
     colors: PdfColors,
 });
 
+#[allow(deprecated)]
+impl Pdf {
+    /// Sets the deprecated `version` field.
+    #[deprecated(note = "deprecated by the API: use `Pdf::report_version` instead")]
+    #[must_use]
+    pub fn version(mut self, version: PdfVersion) -> Self {
+        self.version = Some(version);
+        self
+    }
+}
+
 /// The colors of the PDF report, as HEX strings such as `#FE5758`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PdfColors {
     /// The main strip in the header.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub main_strip: Option<String>,
-    /// Titles.
+    /// Titles. Server default: `#040F21`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub titles: Option<String>,
-    /// Highlights of identical matches.
+    /// Highlights of identical matches. Server default: `#FE5758`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identical: Option<String>,
-    /// Highlights of minor changes.
+    /// Highlights of minor changes. Server default: `#FE8888`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minor_changes: Option<String>,
-    /// Highlights of related meaning (paraphrased) matches.
+    /// Highlights of related meaning (paraphrased) matches. Server default: `#FDD0A3`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub related_meaning: Option<String>,
+    /// Highlights of AI-generated text. Server default: `#FE5758`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_detection: Option<String>,
+    /// Highlights of Grammar Checker corrections. Server default: `#FF9A02`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub writing_feedback: Option<String>,
 }
 
 setters!(PdfColors {
@@ -725,20 +1004,139 @@ setters!(PdfColors {
     identical: String,
     minor_changes: String,
     related_meaning: String,
+    ai_detection: String,
+    writing_feedback: String,
 });
 
-/// AI Text Detection settings for a plagiarism scan.
+/// AI Text Detection settings for a plagiarism scan (`properties.aiGeneratedText`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct AiGeneratedText {
     /// Detect whether the text was written by AI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detect: Option<bool>,
+    /// How hard to look for edited AI text, from 1 to 3; see
+    /// [`AiTextDetectionRequest::sensitivity`](field@crate::ai_text::AiTextDetectionRequest::sensitivity).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensitivity: Option<u8>,
+    /// AI Logic: explain why the text was detected as AI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explain: Option<AiGeneratedTextExplain>,
 }
 
-setters!(AiGeneratedText { detect: bool });
+setters!(AiGeneratedText {
+    detect: bool,
+    sensitivity: u8,
+    explain: AiGeneratedTextExplain,
+});
+
+/// AI Logic settings for the AI Text Detection of a plagiarism scan
+/// (`properties.aiGeneratedText.explain`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct AiGeneratedTextExplain {
+    /// Return AI Logic explanations. Server default: `false`. Explanations are returned for six
+    /// languages only; for other languages the scan gets an `ai-insights-lang-unsupported` alert.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable: Option<bool>,
+}
+
+setters!(AiGeneratedTextExplain { enable: bool });
+
+/// Masks sensitive data in the scanned document with `#` characters
+/// (`properties.sensitiveDataProtection`). Every option defaults to `false` on the server.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SensitiveDataProtection {
+    /// Mask driver's license numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub drivers_license: Option<bool>,
+    /// Mask credentials, such as authentication tokens, cloud keys, JWTs and passwords.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credentials: Option<bool>,
+    /// Mask passport numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passport: Option<bool>,
+    /// Mask network identifiers: IP and MAC addresses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<bool>,
+    /// Mask URLs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<bool>,
+    /// Mask email addresses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_address: Option<bool>,
+    /// Mask credit card numbers and credit card track numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credit_card: Option<bool>,
+    /// Mask phone numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone_number: Option<bool>,
+}
+
+setters!(SensitiveDataProtection {
+    drivers_license: bool,
+    credentials: bool,
+    passport: bool,
+    network: bool,
+    url: bool,
+    email_address: bool,
+    credit_card: bool,
+    phone_number: bool,
+});
+
+/// Grammar Checker settings for a plagiarism scan (`properties.writingFeedback`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct WritingFeedback {
+    /// Check grammar, spelling and sentence structure. Server default: `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable: Option<bool>,
+    /// The weight of each correction category in the overall writing score.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<ScoreWeights>,
+}
+
+setters!(WritingFeedback {
+    enable: bool,
+    score: ScoreWeights,
+});
+
+/// Gen-AI Overview settings for a plagiarism scan (`properties.overview`). Every option
+/// defaults to `false` on the server.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Overview {
+    /// Generate an overview of the scan's key insights.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable: Option<bool>,
+    /// Leave the AI Text Detection result out of the overview.
+    #[serde(rename = "ignoreAIDetection", skip_serializing_if = "Option::is_none")]
+    pub ignore_ai_detection: Option<bool>,
+    /// Leave the plagiarism result out of the overview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_plagiarism_detection: Option<bool>,
+    /// Leave the Grammar Checker result out of the overview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_writing_feedback: Option<bool>,
+    /// Leave the author's earlier scans out of the overview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_author_data: Option<bool>,
+}
+
+setters!(Overview {
+    enable: bool,
+    ignore_ai_detection: bool,
+    ignore_plagiarism_detection: bool,
+    ignore_writing_feedback: bool,
+    ignore_author_data: bool,
+});
 
 /// AI Source Match settings for a plagiarism scan (`properties.aiSourceMatch`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct AiSourceMatch {
     /// Find online sources suspected of containing AI-generated text. Applies only to documents
     /// detected as English. Server default: `false`.
@@ -748,8 +1146,31 @@ pub struct AiSourceMatch {
 
 setters!(AiSourceMatch { enable: bool });
 
+/// Internal AI Source Match settings for a plagiarism scan (`properties.internalAiSourceMatch`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct InternalAiSourceMatch {
+    /// Find matches in the Copyleaks internal database of AI-generated text. Default: `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable: Option<bool>,
+}
+
+setters!(InternalAiSourceMatch { enable: bool });
+
+/// Citation Checker settings for a plagiarism scan (`properties.references`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct References {
+    /// Detect, parse and validate every reference in the text. Server default: `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validate: Option<bool>,
+}
+
+setters!(References { validate: bool });
+
 /// A custom property attached to the document in a Private Cloud Hub.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct CustomMetadata {
     /// The property name.
     pub key: String,
@@ -768,26 +1189,46 @@ impl CustomMetadata {
 }
 
 /// An export of scan artifacts to your servers, for [`Client::export`](crate::Client::export).
-/// When the export is done, Copyleaks calls the completion webhook with an
-/// [`ExportCompletedWebhook`](crate::webhooks::ExportCompletedWebhook).
+/// When it is done, Copyleaks posts an
+/// [`ExportCompletedWebhook`](crate::webhooks::ExportCompletedWebhook) to the completion webhook.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Export {
     /// Called once the export is done.
     pub completion_webhook: String,
+    /// Headers to send with the completion webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion_webhook_headers: Option<Headers>,
     /// How many times to retry an upload before giving up. From 1 to 12.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_retries: Option<u8>,
-    /// A custom string returned in the export completed webhook.
+    /// A custom string returned in the export completed webhook. At most 512 characters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub developer_payload: Option<String>,
-    /// The results to export. At most 1000.
+    /// The results to export, each uploaded as an
+    /// [`ExportedResult`](crate::exports::ExportedResult). At most 1000.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub results: Option<Vec<ExportResult>>,
     /// Export the PDF report. Allowed only when the scan was submitted with `pdf.create`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_report: Option<ExportTarget>,
-    /// Export the crawled version of the scanned document.
+    /// Export the AI Text Detection report, uploaded as an
+    /// [`AiTextDetectionResponse`](crate::ai_text::AiTextDetectionResponse). Allowed only when
+    /// the scan was submitted with `aiGeneratedText.detect`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_detection: Option<ExportTarget>,
+    /// Export the Grammar Checker report, uploaded as a
+    /// [`GrammarCheckResponse`](crate::grammar::GrammarCheckResponse). Allowed only when the scan
+    /// was submitted with `writingFeedback.enable`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub writing_feedback: Option<ExportTarget>,
+    /// Export the Gen-AI Overview, uploaded as an [`AiOverview`](crate::exports::AiOverview).
+    /// Allowed only when the scan was submitted with `overview.enable`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overview: Option<ExportTarget>,
+    /// Export the crawled version of the scanned document, uploaded as a
+    /// [`CrawledVersion`](crate::exports::CrawledVersion).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crawled_version: Option<ExportTarget>,
 }
@@ -806,6 +1247,9 @@ impl Export {
         if let Some(retries) = self.max_retries {
             validate::range(u32::from(retries), "maxRetries", 1, 12)?;
         }
+        if let Some(payload) = &self.developer_payload {
+            validate::length(payload, "developerPayload", 0, 512)?;
+        }
         if let Some(results) = &self.results {
             validate::count(results.len(), "results", 0, 1000)?;
             for result in results {
@@ -816,6 +1260,9 @@ impl Export {
         }
         for (target, name) in [
             (&self.pdf_report, "pdfReport"),
+            (&self.ai_detection, "aiDetection"),
+            (&self.writing_feedback, "writingFeedback"),
+            (&self.overview, "overview"),
             (&self.crawled_version, "crawledVersion"),
         ] {
             if let Some(target) = target {
@@ -828,15 +1275,20 @@ impl Export {
 }
 
 setters!(Export {
+    completion_webhook_headers: Headers,
     max_retries: u8,
     developer_payload: String,
     results: Vec<ExportResult>,
     pdf_report: ExportTarget,
+    ai_detection: ExportTarget,
+    writing_feedback: ExportTarget,
+    overview: ExportTarget,
     crawled_version: ExportTarget,
 });
 
 /// Where to upload an exported artifact.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct ExportTarget {
     /// The URL to upload the data to.
     pub endpoint: String,
@@ -862,6 +1314,7 @@ setters!(ExportTarget { headers: Headers });
 
 /// A result to export, and where to upload it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct ExportResult {
     /// The result id, from the completed webhook.
     pub id: String,
@@ -896,6 +1349,7 @@ setters!(ExportResult { headers: Headers });
 /// [`SubmitAction::Index`], for [`Client::start`](crate::Client::start).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Start {
     /// The scan ids to start. At most 100.
     pub trigger: Vec<String>,
@@ -934,6 +1388,7 @@ int_enum! {
 
 /// The result of [`Client::start`](crate::Client::start).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct StartResponse {
     /// The scan ids that started.
     #[serde(default, deserialize_with = "scan_ids")]
@@ -967,10 +1422,10 @@ where
         .collect())
 }
 
-/// Deletes scans, for [`Client::delete`](crate::Client::delete). Only completed scans can be
-/// deleted. The deletion runs in the background.
+/// Completed scans to delete, for [`Client::delete`](crate::Client::delete).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Delete {
     /// The scans to delete. At most 10000.
     pub scans: Vec<DeleteScan>,
@@ -1011,6 +1466,7 @@ setters!(Delete {
 
 /// A scan to delete.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct DeleteScan {
     /// The scan id.
     pub id: String,
@@ -1026,6 +1482,7 @@ impl DeleteScan {
 /// The credit balance of your account, from
 /// [`Client::credits_balance`](crate::Client::credits_balance).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CreditsBalance {
     /// Remaining credits. One credit scans up to 250 words.
     #[serde(rename = "Amount", alias = "amount", default)]

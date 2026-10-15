@@ -1,14 +1,20 @@
 //! Webhook payload parsing, with the examples from the API docs, and the AI alert extraction of
 //! the completed webhook.
 
+// `Pdf::version` is deprecated by the API, and is still serialized.
+#![allow(deprecated)]
+
 mod common;
 
 use common::fixture;
+use copyleaks::grammar::ScoreWeights;
 use copyleaks::plagiarism::{
-    AiGeneratedText, AiSourceMatch, Author, CopyleaksDb, CrossLanguages, CustomMetadata,
-    DomainsMode, Exclude, ExcludeCode, Filters, Indexing, IndexingRepository, MaskingPolicy, Pdf,
-    PdfColors, PdfVersion, ScanMethodAlgorithm, ScanProperties, Scanning, ScanningExclude,
-    SearchRepository, StartResponse, SubmitAction, SubmitWebhooks,
+    AiGeneratedText, AiGeneratedTextExplain, AiSourceMatch, Assignment, Author, CopyleaksDb,
+    Course, CrossLanguages, CustomMetadata, DomainsMode, Exclude, ExcludeCode, Filters, Indexing,
+    IndexingRepository, Institution, InternalAiSourceMatch, MaskingPolicy, Overview, Pdf,
+    PdfColors, PdfVersion, References, ScanMethodAlgorithm, ScanProperties, Scanning,
+    ScanningExclude, ScanningInclude, SearchRepository, SensitiveDataProtection, StartResponse,
+    SubmitAction, SubmitWebhooks, WritingFeedback,
 };
 use copyleaks::webhooks::{
     self, alert_codes, Alert, CompletedWebhook, CreditsCheckedWebhook, ErrorWebhook,
@@ -22,12 +28,15 @@ fn parse<T: serde::de::DeserializeOwned>(name: &str) -> T {
     webhooks::parse(&body).expect("webhook parses")
 }
 
+fn alert(code: &str, additional_data: Option<&str>) -> Alert {
+    let mut alert = Alert::default();
+    alert.code = Some(code.to_owned());
+    alert.additional_data = additional_data.map(str::to_owned);
+    alert
+}
+
 fn ai_alert(additional_data: Option<&str>) -> Alert {
-    Alert {
-        code: Some(alert_codes::SUSPECTED_AI_TEXT.to_owned()),
-        additional_data: additional_data.map(str::to_owned),
-        ..Alert::default()
-    }
+    alert(alert_codes::SUSPECTED_AI_TEXT, additional_data)
 }
 
 #[test]
@@ -188,11 +197,7 @@ fn alert_additional_data_edge_cases() {
     }
 
     // Another alert code is never decoded, even with valid AI data.
-    let other = Alert {
-        code: Some("suspected-white-text".to_owned()),
-        additional_data: Some("{\"summary\": {\"ai\": 1}}".to_owned()),
-        ..Alert::default()
-    };
+    let other = alert("suspected-white-text", Some("{\"summary\": {\"ai\": 1}}"));
     assert!(other.ai_detection_result().expect("no error").is_none());
 }
 
@@ -384,7 +389,13 @@ fn scan_properties_use_the_api_field_names() {
         .scanning(
             Scanning::default()
                 .internet(true)
-                .exclude(ScanningExclude::default().id_pattern("abc*"))
+                .exclude(
+                    ScanningExclude::default()
+                        .id_pattern("abc*")
+                        .backlinks_domains(vec!["spam.example".to_owned()])
+                        .text(vec!["lorem ipsum".to_owned()]),
+                )
+                .include(ScanningInclude::default().id_pattern("class-*"))
                 .repositories(vec![SearchRepository::new("repo-1")
                     .include_my_submissions(true)
                     .include_others_submissions(false)])
@@ -395,9 +406,12 @@ fn scan_properties_use_the_api_field_names() {
                 )
                 .cross_languages(CrossLanguages::new(["fr", "es"])),
         )
-        .indexing(Indexing::default().repositories(vec![
-            IndexingRepository::new("repo-1").masking_policy(MaskingPolicy::MaskOtherUsersFiles),
-        ]))
+        .indexing(
+            Indexing::default()
+                .repositories(vec![IndexingRepository::new("repo-1")
+                    .masking_policy(MaskingPolicy::MaskOtherUsersFiles)])
+                .copyleaks_db(false),
+        )
         .exclude(
             Exclude::default()
                 .quotes(true)
@@ -423,16 +437,57 @@ fn scan_properties_use_the_api_field_names() {
                         .titles("#040F21")
                         .identical("#FE5758")
                         .minor_changes("#FE8888")
-                        .related_meaning("#FDD0A3"),
+                        .related_meaning("#FDD0A3")
+                        .ai_detection("#FE5758")
+                        .writing_feedback("#FF9A02"),
                 ),
         )
         .display_language("es")
         .sensitivity_level(3)
         .cheat_detection(true)
         .scan_method_algorithm(ScanMethodAlgorithm::MaximumResults)
-        .ai_generated_text(AiGeneratedText::default().detect(true))
+        .ai_generated_text(
+            AiGeneratedText::default()
+                .detect(true)
+                .sensitivity(1)
+                .explain(AiGeneratedTextExplain::default().enable(false)),
+        )
         .ai_source_match(AiSourceMatch::default().enable(true))
-        .custom_metadata(vec![CustomMetadata::new("course", "cs-101")]);
+        .custom_metadata(vec![CustomMetadata::new("course", "cs-101")])
+        .scan_time_zone("Europe/Paris")
+        .course(Course::new("course-1"))
+        .assignment(Assignment::new("assignment-1"))
+        .institution(Institution::new("institution-1"))
+        .sensitive_data_protection(
+            SensitiveDataProtection::default()
+                .drivers_license(true)
+                .credentials(true)
+                .passport(true)
+                .network(true)
+                .url(true)
+                .email_address(true)
+                .credit_card(true)
+                .phone_number(true),
+        )
+        .writing_feedback(
+            WritingFeedback::default().enable(true).score(
+                ScoreWeights::default()
+                    .grammar_score_weight(0.1)
+                    .mechanics_score_weight(0.2)
+                    .sentence_structure_score_weight(0.3)
+                    .word_choice_score_weight(0.4),
+            ),
+        )
+        .overview(
+            Overview::default()
+                .enable(true)
+                .ignore_ai_detection(true)
+                .ignore_plagiarism_detection(false)
+                .ignore_writing_feedback(true)
+                .ignore_author_data(false),
+        )
+        .internal_ai_source_match(InternalAiSourceMatch::default().enable(true))
+        .references(References::default().validate(true));
 
     let expected: Value = json!({
         "webhooks": {
@@ -459,14 +514,22 @@ fn scan_properties_use_the_api_field_names() {
         },
         "scanning": {
             "internet": true,
-            "exclude": { "idPattern": "abc*" },
+            "exclude": {
+                "idPattern": "abc*",
+                "backlinksDomains": ["spam.example"],
+                "text": ["lorem ipsum"]
+            },
+            "include": { "idPattern": "class-*" },
             "repositories": [
                 { "id": "repo-1", "includeMySubmissions": true, "includeOthersSubmissions": false }
             ],
             "copyleaksDb": { "includeMySubmissions": true, "includeOthersSubmissions": true },
             "crossLanguages": { "languages": [{ "code": "fr" }, { "code": "es" }] }
         },
-        "indexing": { "repositories": [{ "id": "repo-1", "maskingPolicy": 1 }] },
+        "indexing": {
+            "repositories": [{ "id": "repo-1", "maskingPolicy": 1 }],
+            "copyleaksDb": false
+        },
         "exclude": {
             "quotes": true,
             "citations": true,
@@ -489,16 +552,50 @@ fn scan_properties_use_the_api_field_names() {
                 "titles": "#040F21",
                 "identical": "#FE5758",
                 "minorChanges": "#FE8888",
-                "relatedMeaning": "#FDD0A3"
+                "relatedMeaning": "#FDD0A3",
+                "aiDetection": "#FE5758",
+                "writingFeedback": "#FF9A02"
             }
         },
         "displayLanguage": "es",
         "sensitivityLevel": 3,
         "cheatDetection": true,
         "scanMethodAlgorithm": 1,
-        "aiGeneratedText": { "detect": true },
+        "aiGeneratedText": { "detect": true, "sensitivity": 1, "explain": { "enable": false } },
         "aiSourceMatch": { "enable": true },
-        "customMetadata": [{ "key": "course", "value": "cs-101" }]
+        "customMetadata": [{ "key": "course", "value": "cs-101" }],
+        "scanTimeZone": "Europe/Paris",
+        "course": { "id": "course-1" },
+        "assignment": { "id": "assignment-1" },
+        "institution": { "id": "institution-1" },
+        "sensitiveDataProtection": {
+            "driversLicense": true,
+            "credentials": true,
+            "passport": true,
+            "network": true,
+            "url": true,
+            "emailAddress": true,
+            "creditCard": true,
+            "phoneNumber": true
+        },
+        "writingFeedback": {
+            "enable": true,
+            "score": {
+                "grammarScoreWeight": 0.1,
+                "mechanicsScoreWeight": 0.2,
+                "sentenceStructureScoreWeight": 0.3,
+                "wordChoiceScoreWeight": 0.4
+            }
+        },
+        "overview": {
+            "enable": true,
+            "ignoreAIDetection": true,
+            "ignorePlagiarismDetection": false,
+            "ignoreWritingFeedback": true,
+            "ignoreAuthorData": false
+        },
+        "internalAiSourceMatch": { "enable": true },
+        "references": { "validate": true }
     });
     assert_eq!(
         serde_json::to_value(properties).expect("serialize"),
@@ -544,4 +641,375 @@ fn ai_source_match_display_language_and_report_version_json() {
         serde_json::to_value(AiSourceMatch::default()).expect("serialize"),
         json!({})
     );
+}
+
+#[test]
+fn completed_webhook_new_sections() {
+    let completed: CompletedWebhook = parse("completed_webhook_full.json");
+
+    let document = completed
+        .scanned_document
+        .as_ref()
+        .expect("scanned document");
+    assert_eq!(document.expected_credits, Some(1));
+    assert_eq!(document.detected_language.as_deref(), Some("en"));
+    let enabled = document.enabled.expect("enabled features");
+    assert_eq!(enabled.plagiarism_detection, Some(true));
+    assert_eq!(enabled.pdf_report, Some(true));
+    assert_eq!(enabled.ai_detection, Some(false));
+    assert_eq!(enabled.internal_ai_source_match, Some(false));
+    assert_eq!(enabled.overview, None, "not sent");
+
+    let results = completed.results.as_ref().expect("results");
+    assert_eq!(results.internal_ai_data.len(), 1);
+    let internal = &results.internal_ai_data[0];
+    assert_eq!(internal.id.as_deref(), Some("string"));
+    assert_eq!(internal.matched_words, Some(0));
+    assert_eq!(internal.identical_words, Some(0));
+    assert_eq!(internal.similar_words, Some(0));
+    assert_eq!(internal.paraphrased_words, Some(0));
+    assert_eq!(internal.total_words, Some(0));
+    assert_eq!(
+        internal.tags[0].code.as_deref(),
+        Some("internal-ai-source-match")
+    );
+
+    let summary = completed
+        .references_validation
+        .as_ref()
+        .and_then(|validation| validation.summary)
+        .expect("references summary");
+    assert_eq!(summary.total, Some(2));
+    assert_eq!(summary.academic, Some(1));
+    assert_eq!(summary.academic_validated, Some(1));
+    assert_eq!(summary.non_academic_validated, Some(0));
+
+    let feedback = completed
+        .writing_feedback
+        .as_ref()
+        .expect("writing feedback");
+    let statistics = feedback.text_statistics.expect("text statistics");
+    assert_eq!(statistics.sentence_count, Some(5));
+    assert_eq!(statistics.average_word_length, Some(4.7));
+    let score = feedback.score.as_ref().expect("score");
+    assert_eq!(score.overall_score, Some(94));
+    assert_eq!(score.grammar_corrections_score, Some(93));
+    let readability = feedback.readability.as_ref().expect("readability");
+    assert_eq!(
+        readability.readability_level_text.as_deref(),
+        Some("5th Grader")
+    );
+
+    // The AI alert of this example still decodes, including its deprecated `probability`.
+    let ai = completed
+        .ai_detection_result()
+        .expect("valid")
+        .expect("AI result");
+    assert_eq!(ai.results[0].probability, Some(0.7307997032499992));
+}
+
+#[test]
+fn completed_webhook_docs_example_has_the_new_sections() {
+    // The scan-completed example of the API docs.
+    let completed: CompletedWebhook = parse("completed_webhook.json");
+    let results = completed.results.as_ref().expect("results");
+    assert_eq!(results.internal_ai_data.len(), 1);
+    assert_eq!(results.internal_ai_data[0].similar_words, Some(0));
+    assert!(completed.references_validation.is_some());
+
+    // Absent sections stay empty.
+    let minimal: CompletedWebhook =
+        webhooks::parse(br#"{"status": 0, "results": {}}"#).expect("parses");
+    assert!(minimal
+        .results
+        .as_ref()
+        .expect("results")
+        .internal_ai_data
+        .is_empty());
+    assert!(minimal.writing_feedback.is_none());
+    assert!(minimal.references_validation.is_none());
+}
+
+#[test]
+fn new_result_webhook_internal_ai_data() {
+    let body = json!({
+        "score": { "aggregatedScore": 3.5 },
+        "internalAIData": [null, { "id": "a1", "matchedWords": 12, "totalWords": 40 }]
+    });
+    let new_result: NewResultWebhook = serde_json::from_value(body).expect("parses");
+    assert_eq!(new_result.internal_ai_data.len(), 1);
+    assert_eq!(new_result.internal_ai_data[0].id.as_deref(), Some("a1"));
+    assert_eq!(new_result.internal_ai_data[0].total_words, Some(40));
+}
+
+#[test]
+fn ai_video_webhook() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let video: AiVideoDetectionResponse = parse("ai_video_webhook.json");
+    assert_eq!(video.model.as_deref(), Some("ai-video-1-pro"));
+    let audio = video.audio_result.as_ref().expect("audio");
+    assert_eq!(audio.starts, [13000, 45000, 47000]);
+    assert_eq!(audio.lengths, [14000, 1000, 8700]);
+    let excluded = audio.exclude.as_ref().expect("excluded audio");
+    assert_eq!(excluded.starts.len(), 5);
+    let visual = video.visual_result.as_ref().expect("visual");
+    assert_eq!(visual.starts, [11566, 29433]);
+    assert!(visual
+        .exclude
+        .as_ref()
+        .expect("empty exclude")
+        .starts
+        .is_empty());
+    let summary = video.summary.expect("summary");
+    assert_eq!(summary.audio_ai_ratio, Some(0.4902));
+    assert_eq!(summary.visual_ai_ratio, Some(0.5817));
+    assert_eq!(summary.overall_ai_ratio, Some(0.7487));
+    assert_eq!(video.is_ai_detected, Some(true));
+    let info = video.video_info.as_ref().expect("video info");
+    assert_eq!(info.duration, Some(55.7));
+    let metadata = info.metadata.as_ref().expect("metadata");
+    assert_eq!(metadata.app_or_device_used.as_deref(), Some("Sora"));
+    let scanned = video.scanned_video.as_ref().expect("scanned video");
+    assert_eq!(scanned.scan_id.as_deref(), Some("my-video-scan-1"));
+    assert_eq!(scanned.actual_credits, Some(1));
+    assert_eq!(
+        scanned.creation_time.as_deref(),
+        Some("2026-05-05T12:37:50Z")
+    );
+    assert!(video.error.is_none());
+    assert!(video.developer_payload.is_none());
+}
+
+#[test]
+fn ai_video_webhook_echoes_the_developer_payload() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let mut body = fixture("ai_video_webhook.json");
+    body["developerPayload"] = json!("order-1");
+    let video: AiVideoDetectionResponse =
+        webhooks::parse(&serde_json::to_vec(&body).expect("bytes")).expect("parses");
+    assert_eq!(video.developer_payload.as_deref(), Some("order-1"));
+    assert_eq!(video.is_ai_detected, Some(true));
+    assert!(video.error.is_none());
+}
+
+/// Checks the parsed `ai_detection_error_webhook.json`.
+fn assert_detection_error(error: Option<&webhooks::WebhookError>, developer_payload: Option<&str>) {
+    let error = error.expect("error");
+    assert_eq!(error.error_type.as_deref(), Some("invalid_request_error"));
+    assert_eq!(error.id.as_deref(), Some("invalid_file"));
+    assert_eq!(error.code, Some(1));
+    assert_eq!(
+        error.message.as_deref(),
+        Some("The file could not be processed.")
+    );
+    assert!(error.url.is_none());
+    assert!(error.details.is_empty());
+    assert_eq!(developer_payload, Some("order-1"));
+}
+
+#[test]
+fn ai_video_error_webhook() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let video: AiVideoDetectionResponse = parse("ai_detection_error_webhook.json");
+    assert_detection_error(video.error.as_ref(), video.developer_payload.as_deref());
+    assert!(video.model.is_none());
+    assert!(video.is_ai_detected.is_none());
+    assert!(video.summary.is_none());
+}
+
+#[test]
+fn ai_image_async_error_webhook() {
+    use copyleaks::ai_image::AiImageDetectionResponse;
+
+    let image: AiImageDetectionResponse = parse("ai_detection_error_webhook.json");
+    assert_detection_error(image.error.as_ref(), image.developer_payload.as_deref());
+    assert!(image.model.is_none());
+    assert!(image.is_ai_detected.is_none());
+    assert!(image.detected_objects.is_empty());
+}
+
+#[test]
+fn ai_detection_error_with_url_and_details() {
+    use copyleaks::ai_video::AiVideoDetectionResponse;
+
+    let body = json!({
+        "error": {
+            "type": "invalid_request_error",
+            "id": "missing_parameter",
+            "code": 1,
+            "message": "Bad request.",
+            "url": "https://docs.copyleaks.com/using-the-apis/api-errors",
+            "details": [{ "param": "url", "message": "The video could not be downloaded." }]
+        }
+    });
+    let video: AiVideoDetectionResponse =
+        webhooks::parse(&serde_json::to_vec(&body).expect("bytes")).expect("parses");
+    let error = video.error.as_ref().expect("error");
+    assert_eq!(
+        error.url.as_deref(),
+        Some("https://docs.copyleaks.com/using-the-apis/api-errors")
+    );
+    assert_eq!(error.details.len(), 1);
+    assert_eq!(error.details[0].param.as_deref(), Some("url"));
+    assert!(video.developer_payload.is_none());
+}
+
+#[test]
+fn ai_image_async_webhook() {
+    use copyleaks::ai_image::AiImageDetectionResponse;
+
+    // The sandbox result of a heatmap submission with object detection.
+    let body = json!({
+        "model": "ai-image-1-ultra",
+        "result": { "starts": [0], "lengths": [1048576], "labels": [4] },
+        "summary": { "ai": 1.0, "human": 0.0 },
+        "imageInfo": {
+            "shape": { "width": 1024, "height": 1024 },
+            "metadata": { "issuedBy": "OpenAI" }
+        },
+        "detectedObjects": [
+            { "object": "face", "mask": { "starts": [100000], "lengths": [50000] } }
+        ],
+        "isAiDetected": true,
+        "developerPayload": "order-1"
+    });
+    let response: AiImageDetectionResponse =
+        webhooks::parse(&serde_json::to_vec(&body).expect("bytes")).expect("parses");
+    assert_eq!(
+        response
+            .result
+            .as_ref()
+            .and_then(|mask| mask.labels.clone()),
+        Some(vec![4])
+    );
+    assert_eq!(response.detected_objects[0].object.as_deref(), Some("face"));
+    assert_eq!(response.developer_payload.as_deref(), Some("order-1"));
+    assert_eq!(response.is_ai_detected, Some(true));
+    assert!(response.error.is_none());
+}
+
+#[test]
+fn exported_result_file() {
+    use copyleaks::exports::ExportedResult;
+
+    let result: ExportedResult = parse("exported_result.json");
+    let statistics = result.statistics.expect("statistics");
+    assert_eq!(statistics.identical, Some(0));
+    assert_eq!(statistics.minor_changes, Some(0));
+    assert_eq!(statistics.related_meaning, Some(0));
+    let text = result.text.as_ref().expect("text");
+    assert_eq!(text.value.as_deref(), Some("Hello world!"));
+    assert_eq!(text.pages.as_ref().expect("pages").start_position, [0]);
+    let identical = text
+        .comparison
+        .as_ref()
+        .and_then(|comparison| comparison.identical.as_ref())
+        .expect("identical matches");
+    let source = identical
+        .source
+        .as_ref()
+        .and_then(|source| source.chars.as_ref())
+        .expect("source chars");
+    assert_eq!(
+        (source.starts.clone(), source.lengths.clone()),
+        (vec![0], vec![1])
+    );
+    assert!(identical.suspected.is_some());
+    let html = result.html.as_ref().expect("html");
+    let related = html
+        .comparison
+        .as_ref()
+        .and_then(|comparison| comparison.related_meaning.as_ref())
+        .expect("related meaning");
+    assert_eq!(related.group_id.as_deref(), Some(&[0][..]));
+}
+
+#[test]
+fn crawled_version_file_with_citation_checker() {
+    use copyleaks::exports::CrawledVersion;
+
+    let crawled: CrawledVersion = parse("crawled_version.json");
+    let metadata = crawled.metadata.expect("metadata");
+    assert_eq!((metadata.words, metadata.excluded), (Some(30), Some(2)));
+    let text = crawled.text.as_ref().expect("text");
+    let excluded = text.exclude.as_ref().expect("excluded text");
+    assert_eq!(excluded.reasons, [3]);
+    assert_eq!(excluded.group_ids, None);
+    let html = crawled.html.as_ref().expect("html");
+    assert_eq!(
+        html.exclude
+            .as_ref()
+            .expect("excluded html")
+            .group_ids
+            .as_deref(),
+        Some(&[1][..])
+    );
+
+    let validation = crawled.references_validation.as_ref().expect("references");
+    assert_eq!(validation.summary.expect("summary").total, Some(2));
+    assert_eq!(validation.results.len(), 2);
+    let academic = &validation.results[0];
+    assert_eq!(academic.reference_type.as_deref(), Some("academic"));
+    assert_eq!(
+        academic.text_ranges.as_ref().expect("text ranges").starts,
+        [131]
+    );
+    assert_eq!(
+        academic
+            .html_ranges
+            .as_ref()
+            .and_then(|ranges| ranges.group_ids.clone()),
+        Some(vec![0])
+    );
+    let parsed = academic.parsed.as_ref().expect("parsed");
+    assert_eq!(parsed.title.as_deref(), Some("Attention Is All You Need"));
+    assert_eq!(parsed.authors.len(), 3);
+    assert_eq!(parsed.year, Some(2017));
+    let suggestion = &academic.suggestions[0];
+    assert_eq!(suggestion.published_year, Some(2017));
+    assert_eq!(suggestion.modified_year, Some(2023));
+    let signals = suggestion.signals.expect("signals");
+    assert_eq!(
+        (signals.title, signals.year, signals.authors),
+        (Some(true), Some(true), Some(true))
+    );
+    let web = &validation.results[1];
+    assert_eq!(web.reference_type.as_deref(), Some("nonAcademic"));
+    assert_eq!(
+        web.parsed.as_ref().and_then(|parsed| parsed.url.as_deref()),
+        Some("https://en.wikipedia.org/wiki/Artificial_intelligence")
+    );
+}
+
+#[test]
+fn reference_ranges_sent_as_an_empty_list_are_none() {
+    use copyleaks::exports::ReferenceResult;
+
+    // Plain text scans have no HTML layout: the docs show `"htmlRanges": []`.
+    let result: ReferenceResult = serde_json::from_value(json!({
+        "type": "academic",
+        "textRanges": { "starts": [5], "lengths": [10] },
+        "htmlRanges": [],
+        "suggestions": null
+    }))
+    .expect("parses");
+    assert!(result.html_ranges.is_none());
+    assert_eq!(result.text_ranges.expect("text ranges").lengths, [10]);
+    assert!(result.suggestions.is_empty());
+}
+
+#[test]
+fn ai_overview_file() {
+    use copyleaks::exports::AiOverview;
+
+    let overview: AiOverview = parse("ai_overview.json");
+    assert!(overview
+        .overview
+        .as_deref()
+        .expect("overview")
+        .starts_with("### Historical Author Data:"));
+    assert_eq!(overview.model_version.as_deref(), Some("v1"));
 }

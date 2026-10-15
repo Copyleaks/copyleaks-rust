@@ -1,20 +1,6 @@
-//! The official Copyleaks API SDK for Rust.
-//!
-//! Copyleaks is the integrity layer for your tech stack that helps organizations and individuals
-//! understand what's human-made and original, AI-generated, or manipulated across text, image,
-//! audio and video.
-//!
-//! This crate gives async access to:
-//!
-//! - AI Text Detection: [`Client::ai_text_detection`]
-//! - AI Image Detection: [`Client::ai_image_detection`]
-//! - Plagiarism Checker: [`Client::submit_file`], [`Client::submit_url`],
-//!   [`Client::submit_file_ocr`] and the scan management calls, with the webhook payloads in
-//!   [`webhooks`]
-//! - Grammar Checker: [`Client::grammar_check`]
-//! - Text Moderation: [`Client::text_moderation`]
-//!
-//! # Quickstart
+//! The official Copyleaks API SDK for Rust: AI Text, Image and Video Detection, the Plagiarism
+//! Checker, the Image Plagiarism Detector, the Grammar Checker, Text Moderation and Private Cloud
+//! Hubs. Every call is an async method of [`Client`] that returns [`Result`].
 //!
 //! ```no_run
 //! # async fn run() -> Result<(), copyleaks::Error> {
@@ -23,22 +9,20 @@
 //!
 //! let client = Client::new()?;
 //! let token = client.login("you@example.com", "your-api-key").await?;
-//!
 //! let text = "Lions are social animals, living in groups called prides, typically consisting of \
 //!     several females, their offspring, and a few males. Female lions are the primary hunters, \
 //!     working together to catch prey. Lions are known for their strength, teamwork, and complex \
 //!     social structures.";
 //! let request = AiTextDetectionRequest::new(text).sandbox(true);
 //! let response = client.ai_text_detection(&token, "my-first-scan", &request).await?;
-//! if let Some(summary) = response.summary {
-//!     println!("AI: {:?}, human: {:?}", summary.ai, summary.human);
-//! }
+//! println!("{:?}", response.summary);
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! Every call returns [`Result`]. The library never panics on API input and never prints.
-//! Full API documentation: <https://docs.copyleaks.com>.
+//! Request and response types are `#[non_exhaustive]`: build requests with their constructors and
+//! setters, not struct literals. Responses ignore unknown fields, and a missing or `null` list is
+//! empty. API docs: <https://docs.copyleaks.com>.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
@@ -48,15 +32,21 @@ mod macros;
 
 pub mod ai_image;
 pub mod ai_text;
+pub mod ai_video;
 mod auth;
+mod body;
 mod client;
 mod common;
 mod de;
 mod error;
+pub mod exports;
 pub mod grammar;
+pub mod image_plagiarism;
 pub mod misc;
 pub mod moderation;
 pub mod plagiarism;
+pub mod repositories;
+mod retry;
 mod validate;
 pub mod webhooks;
 
@@ -64,14 +54,13 @@ pub use auth::AuthToken;
 pub use client::{
     Client, ClientBuilder, DEFAULT_API_BASE_URL, DEFAULT_IDENTITY_BASE_URL, DEFAULT_USER_AGENT,
 };
-pub use common::ScannedDocument;
+pub use common::{Headers, ResultWebhook, ScannedDocument};
 pub use error::{Error, Result};
-/// The `reqwest` crate (0.12) this crate is built on, for
-/// [`ClientBuilder::http_client`](method@ClientBuilder::http_client).
-///
-/// reqwest is part of this crate's public API: a new major version of reqwest comes with a new
-/// major version of this crate.
+/// The `reqwest` crate (0.12), for
+/// [`ClientBuilder::http_client`](method@ClientBuilder::http_client). It is part of the public
+/// API: a new major version of reqwest means a new major version here.
 pub use reqwest;
+pub use retry::RetryPolicy;
 
 /// The version of this crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

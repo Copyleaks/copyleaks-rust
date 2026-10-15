@@ -5,6 +5,7 @@ mod common;
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
+use std::time::Duration;
 
 use common::{client, token, TOKEN};
 use copyleaks::plagiarism::{FileSubmission, ScanProperties};
@@ -71,7 +72,7 @@ async fn credits_with_status(status: u16, body: &str) -> Error {
 async fn status_401_is_unauthorized_with_body() {
     let error = credits_with_status(401, "Authorization has been denied").await;
     match &error {
-        Error::Unauthorized { body, endpoint } => {
+        Error::Unauthorized { body, endpoint, .. } => {
             assert_eq!(body, "Authorization has been denied");
             assert_eq!(endpoint, "GET /v3/scans/credits");
         }
@@ -92,6 +93,68 @@ async fn status_429_is_rate_limited_with_body() {
         matches!(&error, Error::RateLimited { body, .. } if body == "slow down"),
         "{error:?}"
     );
+}
+
+async fn credits_with_retry_after(status: u16, retry_after: &str) -> Error {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v3/scans/credits"))
+        .respond_with(
+            ResponseTemplate::new(status)
+                .insert_header("retry-after", retry_after)
+                .set_body_string("wait"),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    client(&server)
+        .credits_balance(&token())
+        .await
+        .expect_err("the call fails")
+}
+
+#[tokio::test]
+async fn rate_limited_error_exposes_retry_after() {
+    let error = credits_with_retry_after(429, "7").await;
+    match &error {
+        Error::RateLimited {
+            body,
+            endpoint,
+            retry_after,
+            ..
+        } => {
+            assert_eq!(body, "wait");
+            assert_eq!(endpoint, "GET /v3/scans/credits");
+            assert_eq!(*retry_after, Some(Duration::from_secs(7)));
+        }
+        other => panic!("expected Error::RateLimited, got {other:?}"),
+    }
+    assert_eq!(error.retry_after(), Some(Duration::from_secs(7)));
+    assert_eq!(error.status(), Some(429));
+
+    // Without the header, or with a value that is not a wait, there is no retry_after.
+    assert_eq!(credits_with_status(429, "").await.retry_after(), None);
+    assert_eq!(
+        credits_with_retry_after(429, "later").await.retry_after(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn under_maintenance_error_exposes_retry_after_from_a_date() {
+    let error = credits_with_retry_after(503, "Fri, 01 Jan 2100 00:00:00 GMT").await;
+    assert!(matches!(error, Error::UnderMaintenance { .. }), "{error:?}");
+    let wait = error.retry_after().expect("a wait");
+    assert!(wait > Duration::from_secs(3600), "{wait:?}");
+    assert_eq!(error.status(), Some(503));
+}
+
+#[tokio::test]
+async fn status_of_other_errors() {
+    assert_eq!(credits_with_status(401, "").await.status(), Some(401));
+    assert_eq!(credits_with_status(402, "").await.status(), Some(402));
+    assert_eq!(credits_with_status(402, "").await.retry_after(), None);
+    assert_eq!(Error::TokenExpired.status(), None);
 }
 
 #[tokio::test]
@@ -152,7 +215,9 @@ async fn json_body_over_16_mib_fails_without_truncating() {
         .await
         .expect_err("too large");
     match &error {
-        Error::ResponseTooLarge { endpoint, limit } => {
+        Error::ResponseTooLarge {
+            endpoint, limit, ..
+        } => {
             assert_eq!(endpoint, "GET /v3/miscellaneous/ocr-languages-list");
             assert_eq!(*limit, 16 << 20);
         }
@@ -174,7 +239,9 @@ async fn streamed_json_body_over_16_mib_fails_mid_read() {
         .await
         .expect_err("too large");
     match &error {
-        Error::ResponseTooLarge { endpoint, limit } => {
+        Error::ResponseTooLarge {
+            endpoint, limit, ..
+        } => {
             assert_eq!(endpoint, "GET /v3/miscellaneous/ocr-languages-list");
             assert_eq!(*limit, 16 << 20);
         }
@@ -241,6 +308,7 @@ async fn other_status_is_api_error_with_body_and_endpoint() {
             status,
             body,
             endpoint,
+            ..
         } => {
             assert_eq!(*status, 409);
             assert_eq!(body, "scan id already exists");
@@ -382,6 +450,22 @@ fn base_url_must_be_https_or_loopback_http() {
             .build()
             .unwrap_or_else(|error| panic!("{url} should be accepted: {error}"));
     }
+}
+
+#[test]
+fn timeouts_cannot_be_combined_with_a_custom_http_client() {
+    let http = copyleaks::reqwest::Client::new();
+    let error = Client::builder()
+        .http_client(http)
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect_err("ambiguous timeout");
+    assert!(matches!(error, Error::Validation(_)), "{error:?}");
+    Client::builder()
+        .timeout(Duration::from_secs(300))
+        .connect_timeout(Duration::from_secs(5))
+        .build()
+        .expect("timeouts on the default client");
 }
 
 #[test]

@@ -1,7 +1,5 @@
-//! AI Text Detection: tell human-written text from AI-generated text.
-//!
-//! The same [`AiTextDetectionResponse`] is the decoded `additionalData` of the
-//! `suspected-ai-text` alert in the plagiarism scan completed webhook; see
+//! AI Text Detection: tell human-written text from AI-generated text. [`AiTextDetectionResponse`]
+//! is also the AI result of a plagiarism scan; see
 //! [`CompletedWebhook::ai_detection_result`](crate::webhooks::CompletedWebhook::ai_detection_result).
 
 use serde::{Deserialize, Serialize};
@@ -11,22 +9,21 @@ use crate::{de, validate, Result, ScannedDocument};
 /// A text to check, for [`Client::ai_text_detection`](crate::Client::ai_text_detection).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct AiTextDetectionRequest {
     /// The text. From 255 to 100,000 characters (UTF-16 code units).
     pub text: String,
     /// Sandbox mode: free mock results, for integration testing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<bool>,
-    /// The ISO 639-1 language code of the text, for example `en`.
-    /// Detected automatically when not set.
+    /// The ISO 639-1 language code, for example `en`. Detected automatically when not set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     /// Return AI Logic explanations in [`AiTextDetectionResponse::explain`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explain: Option<bool>,
-    /// How hard to look for edited AI text, from 1 to 3. The server default is 2.
-    /// `1` finds text copied from an LLM without edits, `2` also finds text with minor edits,
-    /// and `3` also finds heavily edited text.
+    /// How hard to look for edited AI text: `1` finds unedited LLM text, `2` (server default)
+    /// also minor edits, `3` also heavy edits.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitivity: Option<u8>,
 }
@@ -56,10 +53,10 @@ setters!(AiTextDetectionRequest {
     sensitivity: u8,
 });
 
-/// The result of AI Text Detection. Unknown fields are ignored, missing fields are `None`,
-/// and a missing or `null` list is empty.
+/// The result of AI Text Detection.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct AiTextDetectionResponse {
     /// The version of the detection model, for example `v11.0`.
     #[serde(default, deserialize_with = "de::opt_string_or_number")]
@@ -85,10 +82,13 @@ pub struct AiTextDetectionResponse {
 /// A classified section of the text.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+#[allow(deprecated)]
 pub struct AiTextDetectionResult {
     /// `1` for human-written text, `2` for AI-generated text.
     pub classification: Option<i32>,
     /// The confidence of the classification. Deprecated by the API and may be missing.
+    #[deprecated(note = "deprecated by the API, which may stop sending it; use `classification`")]
     pub probability: Option<f64>,
     /// Where the section is in the scanned document.
     #[serde(default, deserialize_with = "de::null_as_default")]
@@ -97,6 +97,7 @@ pub struct AiTextDetectionResult {
 
 /// Where a classified section is in the scanned document.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AiTextDetectionMatch {
     /// Positions in the plain text.
     pub text: Option<TextPositions>,
@@ -106,6 +107,7 @@ pub struct AiTextDetectionMatch {
 
 /// Character and word positions.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct TextPositions {
     /// Character positions.
     pub chars: Option<Ranges>,
@@ -118,6 +120,7 @@ pub struct TextPositions {
 /// Also accepts the `Starts` and `Lengths` keys that sandbox scans send.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Ranges {
     /// Start positions of the segments.
     #[serde(default, alias = "Starts", deserialize_with = "de::null_as_default")]
@@ -133,6 +136,7 @@ pub struct Ranges {
 ///
 /// Also accepts the `Human` and `Ai` keys that sandbox scans send.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AiTextDetectionSummary {
     /// The share of words classified as human-written.
     #[serde(alias = "Human")]
@@ -144,6 +148,7 @@ pub struct AiTextDetectionSummary {
 
 /// AI Logic explanations of the detection.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AiTextDetectionExplain {
     /// The AI patterns found in the text.
     pub patterns: Option<AiTextPatterns>,
@@ -151,6 +156,7 @@ pub struct AiTextDetectionExplain {
 
 /// AI patterns found in the text, with their statistics and positions.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AiTextPatterns {
     /// Statistics of each pattern.
     pub statistics: Option<AiTextPatternStatistics>,
@@ -163,6 +169,7 @@ pub struct AiTextPatterns {
 /// Statistics of the AI patterns, as parallel lists with one entry per pattern.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct AiTextPatternStatistics {
     /// How often each pattern appears in AI-generated text, per million texts.
     #[serde(default, deserialize_with = "de::null_as_default")]
@@ -176,4 +183,14 @@ pub struct AiTextPatternStatistics {
     /// The source of each pattern: `1` for AI, `2` for a humanizer.
     #[serde(default, deserialize_with = "de::null_as_default")]
     pub source: Vec<i32>,
+}
+
+/// The AI Text Detection credit balance of your account, from
+/// [`Client::ai_text_detection_credits`](crate::Client::ai_text_detection_credits).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct AiTextDetectionCredits {
+    /// The credits left for AI Text Detection.
+    #[serde(default, deserialize_with = "de::null_as_default")]
+    pub credits: i64,
 }

@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "words": 30,
+    "excluded": 2
+  },
+  "html": {
+    "value": "<html><body><h1>Example Domain</h1><p>This domain is established to be used for illustrative examples in documents.</body></html>",
+    "exclude": {
+      "starts": [
+        16
+      ],
+      "lengths": [
+        14
+      ],
+      "reasons": [
+        3
+      ],
+      "groupIds": [
+        1
+      ]
+    }
+  },
+  "text": {
+    "value": "Example Domain This domain is established to be used for illustrative examples in documents.",
+    "exclude": {
+      "starts": [
+        0
+      ],
+      "lengths": [
+        14
+      ],
+      "reasons": [
+        3
+      ]
+    },
+    "pages": {
+      "startPosition": [
+        0
+      ]
+    }
+  },
+  "referencesValidation": {
+    "summary": {
+      "total": 2,
+      "academic": 1,
+      "academicValidated": 1,
+      "nonAcademicValidated": 0
+    },
+    "results": [
+      {
+        "type": "academic",
+        "textRanges": {
+          "starts": [
+            131
+          ],
+          "lengths": [
+            131
+          ]
+        },
+        "htmlRanges": {
+          "starts": [
+            240
+          ],
+          "lengths": [
+            131
+          ],
+          "groupIds": [
+            0
+          ]
+        },
+        "parsed": {
+          "title": "Attention Is All You Need",
+          "authors": [
+            "Vaswani, A.",
+            "Shazeer, N.",
+            "Parmar, N."
+          ],
+          "year": 2017,
+          "journal": "Advances in Neural Information Processing Systems"
+        },
+        "suggestions": [
+          {
+            "url": "https://doi.org/10.48550/arXiv.1706.03762",
+            "doi": "10.48550/arXiv.1706.03762",
+            "title": "Attention Is All You Need",
+            "authors": [
+              "Vaswani, A.",
+              "Shazeer, N.",
+              "Parmar, N.",
+              "Uszkoreit, J."
+            ],
+            "publishedYear": 2017,
+            "modifiedYear": 2023,
+            "journal": "Advances in Neural Information Processing Systems",
+            "signals": {
+              "title": true,
+              "year": true,
+              "authors": true
+            }
+          }
+        ]
+      },
+      {
+        "type": "nonAcademic",
+        "textRanges": {
+          "starts": [
+            500
+          ],
+          "lengths": [
+            100
+          ]
+        },
+        "htmlRanges": {
+          "starts": [
+            620
+          ],
+          "lengths": [
+            100
+          ],
+          "groupIds": [
+            1
+          ]
+        },
+        "parsed": {
+          "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+          "title": "Artificial intelligence",
+          "authors": [
+            "Wikipedia"
+          ],
+          "year": 2024,
+          "journal": ""
+        },
+        "suggestions": [
+          {
+            "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+            "doi": "",
+            "title": "Artificial intelligence - Wikipedia",
+            "authors": [
+              "Contributors to Wikimedia projects"
+            ],
+            "publishedYear": 2001,
+            "modifiedYear": 2026,
+            "journal": "",
+            "signals": {
+              "title": true,
+              "year": false,
+              "authors": false
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

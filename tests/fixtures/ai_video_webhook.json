@@ -1,0 +1,66 @@
+{
+  "model": "ai-video-1-pro",
+  "audioResult": {
+    "starts": [
+      13000,
+      45000,
+      47000
+    ],
+    "lengths": [
+      14000,
+      1000,
+      8700
+    ],
+    "exclude": {
+      "starts": [
+        0,
+        3250,
+        5400,
+        7600,
+        10500
+      ],
+      "lengths": [
+        2950,
+        1500,
+        1200,
+        650,
+        1050
+      ]
+    }
+  },
+  "visualResult": {
+    "starts": [
+      11566,
+      29433
+    ],
+    "lengths": [
+      6134,
+      26267
+    ],
+    "exclude": {
+      "starts": [],
+      "lengths": []
+    }
+  },
+  "summary": {
+    "audioAIRatio": 0.4902,
+    "visualAIRatio": 0.5817,
+    "overallAIRatio": 0.7487
+  },
+  "isAiDetected": true,
+  "videoInfo": {
+    "metadata": {
+      "issuedTime": "2026-03-17T13:14:57+00:00",
+      "issuedBy": "OpenAI",
+      "appOrDeviceUsed": "Sora",
+      "contentSummary": "Created using generative AI"
+    },
+    "duration": 55.7
+  },
+  "scannedVideo": {
+    "scanId": "my-video-scan-1",
+    "actualCredits": 1,
+    "expectedCredits": 1,
+    "creationTime": "2026-05-05T12:37:50Z"
+  }
+}

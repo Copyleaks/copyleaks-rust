@@ -1,0 +1,124 @@
+{
+  "scannedDocument": {
+    "scanId": "scan-id32",
+    "totalWords": 2,
+    "totalExcluded": 0,
+    "credits": 0,
+    "expectedCredits": 1,
+    "creationTime": "2025-08-05T07:19:08.181236Z",
+    "metadata": {
+      "filename": "file.txt"
+    },
+    "enabled": {
+      "plagiarismDetection": true,
+      "aiDetection": false,
+      "explainableAi": false,
+      "writingFeedback": false,
+      "pdfReport": true,
+      "cheatDetection": false,
+      "referencesValidation": false,
+      "aiSourceMatch": false,
+      "internalAiSourceMatch": false
+    },
+    "detectedLanguage": "en"
+  },
+  "results": {
+    "score": {
+      "identicalWords": 1,
+      "minorChangedWords": 0,
+      "relatedMeaningWords": 0,
+      "aggregatedScore": 50.0
+    },
+    "internet": [
+      {
+        "url": "http://example.com/",
+        "id": "2a1b402420",
+        "title": "Example Domain",
+        "introduction": "Example Domain This domain is for use in illustrative examples in documents. You may use this domain in literature without...",
+        "matchedWords": 1,
+        "identicalWords": 1,
+        "similarWords": 0,
+        "paraphrasedWords": 0,
+        "totalWords": 28,
+        "metadata": {
+          "authors": []
+        },
+        "tags": []
+      }
+    ],
+    "database": [],
+    "batch": [],
+    "repositories": [],
+    "internalAIData": [
+      {
+        "id": "string",
+        "title": "string",
+        "introduction": "string",
+        "matchedWords": 0,
+        "identicalWords": 0,
+        "similarWords": 0,
+        "paraphrasedWords": 0,
+        "totalWords": 0,
+        "tags": [
+          {
+            "code": "internal-ai-source-match",
+            "title": "AI-Generated",
+            "description": "This result contains AI-generated text"
+          }
+        ]
+      }
+    ]
+  },
+  "notifications": {
+    "alerts": [
+      {
+        "code": "suspected-ai-text",
+        "title": "Potential AI-Generated Text Detected",
+        "message": "We are unable to verify that the text was written by a human.",
+        "severity": 4,
+        "additionalData": "{\"results\": [{\"classification\": 2, \"probability\": 0.7307997032499992, \"matches\": [ {\"text\": {\"chars\": {\"starts\": [0], \"lengths\": [1453]}, \"words\": {\"starts\": [0], \"lengths\": [230]}}}]}], \"summary\": {\"human\": 0.0, \"ai\": 1.0}, \"modelVersion\": \"v8.0\"}",
+        "category": 2
+      }
+    ]
+  },
+  "writingFeedback": {
+    "textStatistics": {
+      "sentenceCount": 5,
+      "averageWordLength": 4.7,
+      "averageSentenceLength": 12.8,
+      "readingTimeSeconds": 21.0,
+      "speakingTimeSeconds": 29.5
+    },
+    "score": {
+      "grammarCorrectionsCount": 1,
+      "grammarCorrectionsScore": 93,
+      "grammarScoreWeight": 1.0,
+      "mechanicsCorrectionsCount": 1,
+      "mechanicsCorrectionsScore": 93,
+      "mechanicsScoreWeight": 1.0,
+      "sentenceStructureCorrectionsCount": 1,
+      "sentenceStructureCorrectionsScore": 93,
+      "sentenceStructureScoreWeight": 1.0,
+      "wordChoiceCorrectionsCount": 0,
+      "wordChoiceCorrectionsScore": 100,
+      "wordChoiceScoreWeight": 1.0,
+      "overallScore": 94
+    },
+    "readability": {
+      "score": 95,
+      "readabilityLevel": 1,
+      "readabilityLevelText": "5th Grader",
+      "readabilityLevelDescription": "Very easy to read"
+    }
+  },
+  "status": 0,
+  "developerPayload": "",
+  "referencesValidation": {
+    "summary": {
+      "total": 2,
+      "academic": 1,
+      "academicValidated": 1,
+      "nonAcademicValidated": 0
+    }
+  }
+}
