@@ -90,7 +90,8 @@ impl CompletedWebhook {
     }
 
     /// The AI Text Detection result of the scan: [`Alert::ai_detection_result`] of the
-    /// [`ai_detection_alert`](Self::ai_detection_alert), or `Ok(None)` without that alert.
+    /// [`ai_detection_alert`](Self::ai_detection_alert), or `Ok(None)` without that alert. Use
+    /// `ai_detection_alert` to tell the `Ok(None)` cases apart.
     ///
     /// # Errors
     ///

@@ -53,7 +53,7 @@ impl AuthToken {
     ///
     /// # Errors
     ///
-    /// [`Error::TokenExpired`] when the token expires within 5 minutes or has no `.expires`;
+    /// [`Error::TokenExpired`] when the token has expired, expires within 5 minutes, or has no `.expires`;
     /// [`Error::Validation`] when the access token is empty or `.expires` is not ISO 8601.
     pub fn verify(&self) -> Result<()> {
         if self.access_token.is_empty() {
