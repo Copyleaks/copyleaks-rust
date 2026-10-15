@@ -8,7 +8,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::de;
 
 /// The API release notes, from [`Client::release_notes`](crate::Client::release_notes).
-/// This endpoint is not part of the API reference, and its content may change.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ReleaseNotes {
@@ -57,9 +56,6 @@ pub struct SupportedAiTextFileTypes {
 /// The languages of cross-language plagiarism detection, from
 /// [`Client::allowed_cross_languages`](crate::Client::allowed_cross_languages). Use the codes in
 /// [`CrossLanguages`](crate::plagiarism::CrossLanguages).
-///
-/// The server sends each list as an object from language name to ISO 639-1 code, for example
-/// `{"english": "en"}`; a plain list of codes is accepted too.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

@@ -1,16 +1,10 @@
-//! Webhook payloads of plagiarism scans, and helpers to parse them.
+//! Webhook payloads of plagiarism scans. Parse any webhook body or exported file with [`parse`].
 //!
-//! Copyleaks calls your status webhook with one of [`CompletedWebhook`], [`ErrorWebhook`],
-//! [`CreditsCheckedWebhook`] or [`IndexedWebhook`], depending on the `{STATUS}` in the URL.
-//! It calls the new result webhook with [`NewResultWebhook`] while the scan runs, and the export
-//! completion webhook with [`ExportCompletedWebhook`].
-//!
-//! The asynchronous products post their own results: an
-//! [`AiImageDetectionResponse`](crate::ai_image::AiImageDetectionResponse) for AI Image
-//! Detection by URL, and an [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse)
-//! for AI Video Detection. Check their `error` field first: a failed detection has only the
-//! error and the developer payload. The files an export uploads are in [`crate::exports`]. Parse
-//! any of them with [`parse`].
+//! The status webhook gets [`CompletedWebhook`], [`ErrorWebhook`], [`CreditsCheckedWebhook`] or
+//! [`IndexedWebhook`] by its `{STATUS}`, the new result webhook [`NewResultWebhook`], and the
+//! export completion webhook [`ExportCompletedWebhook`]. AI Image Detection by URL and AI Video
+//! Detection post an [`AiImageDetectionResponse`](crate::ai_image::AiImageDetectionResponse) and
+//! an [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse).
 //!
 //! ```
 //! use copyleaks::webhooks::{self, CompletedWebhook};
@@ -23,8 +17,6 @@
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! Unknown fields are ignored, missing fields are `None`, and a missing or `null` list is empty.
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -97,18 +89,12 @@ impl CompletedWebhook {
             .find(|alert| alert.code.as_deref() == Some(alert_codes::SUSPECTED_AI_TEXT))
     }
 
-    /// Returns the AI Text Detection result of the scan, decoded from the `additionalData` of its
-    /// `suspected-ai-text` alert. The same as
-    /// [`ai_detection_alert`](Self::ai_detection_alert) then [`Alert::ai_detection_result`].
-    ///
-    /// Returns `Ok(None)` when there is no such alert, or its additional data is empty or is
-    /// valid JSON that is not an object. Use [`ai_detection_alert`](Self::ai_detection_alert)
-    /// to tell these cases apart.
+    /// The AI Text Detection result of the scan: [`Alert::ai_detection_result`] of the
+    /// [`ai_detection_alert`](Self::ai_detection_alert), or `Ok(None)` without that alert.
     ///
     /// # Errors
     ///
-    /// [`Error::Json`](crate::Error::Json) when the additional data is not valid JSON, or a field
-    /// has a type the result cannot accept.
+    /// The same as [`Alert::ai_detection_result`].
     pub fn ai_detection_result(&self) -> Result<Option<AiTextDetectionResponse>> {
         match self.ai_detection_alert() {
             Some(alert) => alert.ai_detection_result(),
@@ -533,19 +519,13 @@ pub struct Alert {
 
 impl Alert {
     /// Decodes the `additional_data` of a `suspected-ai-text` alert into the AI Text Detection
-    /// result.
-    ///
-    /// Trailing NUL characters and ASCII whitespace are removed before parsing;
-    /// `additional_data` itself is not changed.
-    ///
-    /// Returns `Ok(None)` when the alert code is not [`alert_codes::SUSPECTED_AI_TEXT`], the
-    /// additional data is missing or empty, or it is valid JSON that is not an object
-    /// (for example `null` or a list).
+    /// result, ignoring trailing NUL characters and ASCII whitespace. `Ok(None)` for another
+    /// alert code, missing or empty data, or valid JSON that is not an object.
     ///
     /// # Errors
     ///
-    /// [`Error::Json`](crate::Error::Json) when the additional data is not valid JSON, or a field
-    /// has a type the result cannot accept (for example `"summary": 5`).
+    /// [`Error::Json`](crate::Error::Json) when the data is not valid JSON, or a field has a type
+    /// the result cannot accept.
     pub fn ai_detection_result(&self) -> Result<Option<AiTextDetectionResponse>> {
         if self.code.as_deref() != Some(alert_codes::SUSPECTED_AI_TEXT) {
             return Ok(None);

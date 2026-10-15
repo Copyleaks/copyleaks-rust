@@ -1,19 +1,6 @@
-//! The files that an [`Export`](crate::plagiarism::Export) uploads to your servers.
-//!
-//! Each export target receives one JSON file. Parse it with [`webhooks::parse`]:
-//!
-//! | Export target | File type |
-//! |---|---|
-//! | [`results`](field@crate::plagiarism::Export::results) | [`ExportedResult`], one per result |
-//! | [`crawled_version`](field@crate::plagiarism::Export::crawled_version) | [`CrawledVersion`] |
-//! | [`ai_detection`](field@crate::plagiarism::Export::ai_detection) | [`AiTextDetectionResponse`](crate::ai_text::AiTextDetectionResponse) |
-//! | [`writing_feedback`](field@crate::plagiarism::Export::writing_feedback) | [`GrammarCheckResponse`](crate::grammar::GrammarCheckResponse) |
-//! | [`overview`](field@crate::plagiarism::Export::overview) | [`AiOverview`] |
-//! | [`pdf_report`](field@crate::plagiarism::Export::pdf_report) | the PDF file itself |
-//!
-//! Unknown fields are ignored, missing fields are `None`, and a missing or `null` list is empty.
-//!
-//! [`webhooks::parse`]: crate::webhooks::parse
+//! The files that an [`Export`](crate::plagiarism::Export) uploads to your servers: one JSON file
+//! per target except the PDF report, typed as listed on each `Export` field. Parse them with
+//! [`webhooks::parse`](crate::webhooks::parse).
 
 use serde::{Deserialize, Deserializer, Serialize};
 

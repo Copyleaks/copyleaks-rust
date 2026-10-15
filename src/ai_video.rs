@@ -1,12 +1,7 @@
 //! AI Video Detection: find AI-generated content in the audio and visual tracks of a video.
 //!
-//! The detection is asynchronous: [`Client::submit_ai_video_detection`] returns once Copyleaks
-//! accepts the video, and Copyleaks then posts an [`AiVideoDetectionResponse`] to your webhook.
-//! Parse it with [`webhooks::parse`](crate::webhooks::parse), and check its
-//! [`error`](field@AiVideoDetectionResponse::error) first: a failed detection has only the error
-//! and the developer payload.
-//!
-//! [`Client::submit_ai_video_detection`]: crate::Client::submit_ai_video_detection
+//! [`Client::submit_ai_video_detection`](crate::Client::submit_ai_video_detection) submits a
+//! video URL; Copyleaks then posts an [`AiVideoDetectionResponse`] to your webhook.
 //!
 //! ```no_run
 //! # async fn run(client: copyleaks::Client, token: copyleaks::AuthToken) -> Result<(), copyleaks::Error> {
@@ -42,13 +37,10 @@ const EXTENSIONS: [&str; 11] = [
     ".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv", ".mpg", ".m4v", ".3gp", ".mxf",
 ];
 
-/// A video to check, for
-/// [`Client::submit_ai_video_detection`](crate::Client::submit_ai_video_detection). Copyleaks
-/// downloads the video from its URL.
-///
-/// The video must be 2 seconds to 1 hour long, at most 512 MiB, at least 360×360 px and at
-/// least 16 frames per second. A video that breaks these rules is reported to the webhook as an
-/// error.
+/// A video URL to check, for
+/// [`Client::submit_ai_video_detection`](crate::Client::submit_ai_video_detection). The video
+/// must be 2 seconds to 1 hour long, at most 512 MiB, at least 360×360 px and 16 frames per
+/// second; otherwise the webhook gets an error.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -58,12 +50,11 @@ pub struct AiVideoDetectionSubmission {
     /// Headers Copyleaks sends when it fetches the video from `url`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<Headers>,
-    /// The HTTP method Copyleaks uses to fetch the video: `GET`, `POST` or `PUT`.
-    /// Server default: `GET`.
+    /// The HTTP method to fetch the video: `GET` (server default), `POST` or `PUT`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verb: Option<String>,
-    /// The file name with its extension: `.mp4`, `.avi`, `.mov`, `.mkv`, `.webm`, `.flv`,
-    /// `.wmv`, `.mpg`, `.m4v`, `.3gp` or `.mxf`. From 4 to 254 characters.
+    /// File name with extension (`.mp4`, `.avi`, `.mov`, `.mkv`, `.webm`, `.flv`, `.wmv`, `.mpg`,
+    /// `.m4v`, `.3gp`, `.mxf`), 4 to 254 characters.
     pub filename: String,
     /// The detection model, for example [`AI_VIDEO_1_PRO`].
     pub model: String,
@@ -78,8 +69,7 @@ pub struct AiVideoDetectionSubmission {
 }
 
 impl AiVideoDetectionSubmission {
-    /// Creates a submission of the video at `url`, with the file name, the model and the URL
-    /// that receives the result.
+    /// Creates a submission of the video at `url`; `webhook_url` receives the result.
     pub fn new(
         url: impl Into<String>,
         filename: impl Into<String>,
@@ -126,16 +116,12 @@ setters!(AiVideoDetectionSubmission {
 });
 
 /// The result of AI Video Detection, posted to the webhook of an
-/// [`AiVideoDetectionSubmission`]. Positions and lengths are in milliseconds. Missing fields are
-/// `None`, and a missing or `null` list is empty.
-///
-/// Check [`error`](field@Self::error) first: when the detection fails, Copyleaks posts only the
-/// error and the developer payload.
+/// [`AiVideoDetectionSubmission`]. Check [`error`](field@Self::error) first.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AiVideoDetectionResponse {
-    /// Why the detection failed. When it is set, the result fields are `None`.
+    /// Why the detection failed; then only the developer payload is also set.
     pub error: Option<WebhookError>,
     /// The version of the detection model.
     pub model: Option<String>,

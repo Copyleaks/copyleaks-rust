@@ -10,12 +10,9 @@ const MAX_DISPLAY_BODY: usize = 512;
 
 /// Everything that can go wrong when calling the Copyleaks API.
 ///
-/// The variants of an error status keep the response body (up to 1 MiB), where the server
-/// usually explains the error. Error messages show at most its first 512 bytes, and never
-/// contain the login token or the API key.
-///
-/// The enum and its struct variants are `#[non_exhaustive]`: match struct variants with `..`,
-/// for example `Error::Api { status, .. }`.
+/// Errors for an HTTP error status keep up to 1 MiB of the response body; messages show at most
+/// 512 bytes of it and never contain the login token or the API key. Match struct variants with
+/// `..`, for example `Error::Api { status, .. }`.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -25,7 +22,7 @@ pub enum Error {
     Api {
         /// The HTTP status code.
         status: u16,
-        /// The response body as text, up to 1 MiB. Often a JSON error object from the server.
+        /// The response body as text, often a JSON error object.
         body: String,
         /// The HTTP method and path that failed, for example `PUT /v3/scans/submit/file/my-scan`.
         endpoint: String,
@@ -34,7 +31,7 @@ pub enum Error {
     #[error("unauthorized (HTTP 401) from {endpoint}{}", detail(.body))]
     #[non_exhaustive]
     Unauthorized {
-        /// The response body as text, up to 1 MiB.
+        /// The response body as text.
         body: String,
         /// The HTTP method and path that failed.
         endpoint: String,
@@ -44,7 +41,7 @@ pub enum Error {
     #[error("rate limited (HTTP 429) from {endpoint}: too many requests{}", detail(.body))]
     #[non_exhaustive]
     RateLimited {
-        /// The response body as text, up to 1 MiB.
+        /// The response body as text.
         body: String,
         /// The HTTP method and path that failed.
         endpoint: String,
@@ -56,15 +53,14 @@ pub enum Error {
     #[error("under maintenance (HTTP 503) at {endpoint}; retry later{}", detail(.body))]
     #[non_exhaustive]
     UnderMaintenance {
-        /// The response body as text, up to 1 MiB.
+        /// The response body as text.
         body: String,
         /// The HTTP method and path that failed.
         endpoint: String,
         /// How long the server asked to wait, from its `Retry-After` header, if it sent one.
         retry_after: Option<Duration>,
     },
-    /// The login token has expired or expires within 5 minutes. Log in again.
-    /// Checked locally before every authenticated call, so no request is sent.
+    /// The login token has expired or expires within 5 minutes; log in again. No request was sent.
     #[error("the login token has expired or expires within 5 minutes; log in again")]
     TokenExpired,
     /// A successful response body is larger than the SDK reads: 16 MiB for JSON and 64 MiB for

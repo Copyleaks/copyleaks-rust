@@ -34,9 +34,7 @@ use crate::{validate, AuthToken, Error, Result};
 pub const DEFAULT_API_BASE_URL: &str = "https://api.copyleaks.com";
 /// The default base URL of the Copyleaks identity server, used by [`Client::login`].
 pub const DEFAULT_IDENTITY_BASE_URL: &str = "https://id.copyleaks.com";
-/// The SDK's own `User-Agent` product token, `copyleaks-rust-sdk/<crate version>`, sent on every
-/// request after the token set with
-/// [`ClientBuilder::user_agent`](method@ClientBuilder::user_agent), if any.
+/// The SDK's `User-Agent` product token, `copyleaks-rust-sdk/<crate version>`, always sent.
 pub const DEFAULT_USER_AGENT: &str = concat!("copyleaks-rust-sdk/", env!("CARGO_PKG_VERSION"));
 
 /// The total time limit of each request of the default HTTP client.
@@ -66,9 +64,8 @@ struct Inner {
     retry: Option<RetryPolicy>,
 }
 
-/// An async client for the Copyleaks API.
-///
-/// Cloning is cheap: clones share one connection pool. Create one client and reuse it.
+/// An async client for the Copyleaks API. Clones are cheap and share one connection pool: create
+/// one client and reuse it.
 ///
 /// ```no_run
 /// # async fn run() -> Result<(), copyleaks::Error> {
@@ -90,7 +87,6 @@ enum Server {
     Identity,
 }
 
-/// The body of a request.
 enum Payload {
     Empty,
     /// A JSON body, shared by every attempt.
@@ -117,8 +113,7 @@ impl Payload {
 }
 
 impl Client {
-    /// Creates a client with the default settings: the production URLs and an HTTP client with a
-    /// 10-second connect timeout and a 120-second timeout per request, and no retries.
+    /// Creates a client with the default settings of [`ClientBuilder`].
     ///
     /// # Errors
     ///
@@ -128,15 +123,13 @@ impl Client {
         Self::builder().build()
     }
 
-    /// Returns a builder to configure the HTTP client, timeouts, retries, base URLs and user
-    /// agent.
+    /// Returns a builder for the HTTP client, timeouts, retries, base URLs and user agent.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
     }
 
-    /// Logs in with your account email and API key, and returns a token valid for 48 hours.
-    ///
-    /// Log in once and reuse the token: the login endpoint allows 12 requests per 15 minutes.
+    /// Logs in with your account email and API key. Log in once and reuse the token: the login
+    /// endpoint allows 12 requests per 15 minutes.
     ///
     /// # Errors
     ///
@@ -181,8 +174,8 @@ impl Client {
         Ok(())
     }
 
-    /// Submits an image or scanned document whose text is extracted with OCR, for a plagiarism
-    /// scan. Returns when Copyleaks accepts the scan; the result arrives at the status webhook.
+    /// Submits an image or scanned document for a plagiarism scan of its OCR text, like
+    /// [`Client::submit_file`].
     ///
     /// # Errors
     ///
@@ -204,8 +197,7 @@ impl Client {
         Ok(())
     }
 
-    /// Submits a URL for a plagiarism scan. Returns when Copyleaks accepts the scan; the result
-    /// arrives at the status webhook.
+    /// Submits a URL for a plagiarism scan, like [`Client::submit_file`].
     ///
     /// # Errors
     ///
@@ -227,10 +219,7 @@ impl Client {
         Ok(())
     }
 
-    /// Exports the artifacts of a completed scan (results, PDF report, AI Text Detection and
-    /// Grammar Checker reports, overview, crawled version) to your servers. When the export is
-    /// done, Copyleaks calls the export's completion webhook. The uploaded files are described
-    /// in [`crate::exports`].
+    /// Exports the artifacts of a completed scan to your servers, as set in [`Export`].
     ///
     /// # Errors
     ///
@@ -348,9 +337,8 @@ impl Client {
         reply.body(MAX_CSV_BODY).await
     }
 
-    /// Returns the API release notes. Needs no login.
-    ///
-    /// This endpoint is not part of the API reference, and its content may change.
+    /// Returns the API release notes. Needs no login. Not part of the API reference; the content
+    /// may change.
     ///
     /// # Errors
     ///
@@ -369,8 +357,7 @@ impl Client {
             .await
     }
 
-    /// Returns the file types that AI Text Detection accepts in a plagiarism scan. Needs no
-    /// login.
+    /// Returns the file types AI Text Detection accepts in a plagiarism scan. Needs no login.
     ///
     /// # Errors
     ///
@@ -384,8 +371,7 @@ impl Client {
         .await
     }
 
-    /// Returns the language codes that OCR supports, for [`Client::submit_file_ocr`].
-    /// Needs no login.
+    /// Returns the OCR language codes, for [`Client::submit_file_ocr`]. Needs no login.
     ///
     /// # Errors
     ///
@@ -395,9 +381,7 @@ impl Client {
             .await
     }
 
-    /// Returns the languages of cross-language plagiarism detection: the languages a document
-    /// can be in, and the languages results can be found in. Use them in
-    /// [`CrossLanguages`](crate::plagiarism::CrossLanguages). Needs no login.
+    /// Returns the languages of cross-language plagiarism detection. Needs no login.
     ///
     /// # Errors
     ///
@@ -407,8 +391,8 @@ impl Client {
             .await
     }
 
-    /// Returns information about a Private Cloud Hub repository: its name, status, credits and
-    /// masking policy. Needs the Admin or Super Admin role in the repository.
+    /// Returns information about a Private Cloud Hub repository. Needs the Admin or Super Admin
+    /// role in it.
     ///
     /// # Errors
     ///
@@ -434,9 +418,8 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for a scan id that is not 3 to 36 characters long, a text shorter
-    /// than 255 characters, or a sensitivity outside 1 to 3, and the other [`Error`] variants
-    /// for other failures.
+    /// [`Error::Validation`] for a scan id that is not 3 to 36 characters long or a bad request,
+    /// and the other [`Error`] variants for other failures.
     pub async fn ai_text_detection(
         &self,
         token: &AuthToken,
@@ -467,8 +450,7 @@ impl Client {
         reply.json().await
     }
 
-    /// AI Image Detection: finds whether an image, or part of it, was generated by AI. Sends
-    /// the image base64-encoded in JSON. For large images, prefer
+    /// AI Image Detection of an image sent base64-encoded in JSON. For large images, prefer
     /// [`Client::ai_image_detection_multipart`].
     ///
     /// # Errors
@@ -489,9 +471,8 @@ impl Client {
         reply.json().await
     }
 
-    /// AI Image Detection with a `multipart/form-data` upload: the same request and result as
-    /// [`Client::ai_image_detection`], without the base64 overhead. The API recommends it for
-    /// large images. A request created from base64 text is decoded first.
+    /// [`Client::ai_image_detection`] with a `multipart/form-data` upload, without the base64
+    /// overhead. A request created from base64 text is decoded first.
     ///
     /// # Errors
     ///
@@ -515,16 +496,14 @@ impl Client {
         reply.json().await
     }
 
-    /// AI Image Detection of an image URL, asynchronously. Returns when Copyleaks accepts the
-    /// scan; Copyleaks then fetches the image and posts an
-    /// [`AiImageDetectionResponse`] to the submission's webhook.
+    /// AI Image Detection of an image URL. Returns when Copyleaks accepts the scan; Copyleaks
+    /// then posts an [`AiImageDetectionResponse`] to the submission's webhook.
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for a bad scan id or submission, [`Error::Api`] with status 409 when
-    /// the scan id is already used, and the other [`Error`] variants for other failures. The scan
-    /// id is 3 to 36 characters from ``a-z0-9!@$^&+%=_(){}<>'";:/.,~`|\-`` and must not contain
-    /// `g`, one or more `o` or `0`, then `gle`.
+    /// [`Error::Validation`] for a bad scan id (same rules as for [`Client::export`]) or
+    /// submission, [`Error::Api`] with status 409 when the scan id is already used, and the other
+    /// [`Error`] variants for other failures.
     pub async fn submit_ai_image_detection(
         &self,
         token: &AuthToken,
@@ -545,16 +524,13 @@ impl Client {
         Ok(())
     }
 
-    /// AI Video Detection: submits a video URL. Returns when Copyleaks accepts the scan;
-    /// Copyleaks then downloads the video and posts an
-    /// [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse) to the
+    /// AI Video Detection of a video URL. Returns when Copyleaks accepts the scan; Copyleaks then
+    /// posts an [`AiVideoDetectionResponse`](crate::ai_video::AiVideoDetectionResponse) to the
     /// submission's webhook.
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for a bad scan id or submission, [`Error::Api`] with status 409 when
-    /// the scan id is already used, and the other [`Error`] variants for other failures. The scan
-    /// id follows the same rules as for [`Client::submit_ai_image_detection`].
+    /// The same as [`Client::submit_ai_image_detection`].
     pub async fn submit_ai_video_detection(
         &self,
         token: &AuthToken,
@@ -577,9 +553,8 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for a bad scan id or request, and the other [`Error`] variants for
-    /// other failures. The scan id follows the same rules as for
-    /// [`Client::submit_ai_image_detection`].
+    /// [`Error::Validation`] for a bad scan id (same rules as for [`Client::export`]) or request,
+    /// and the other [`Error`] variants for other failures.
     pub async fn image_plagiarism_detection(
         &self,
         token: &AuthToken,
@@ -619,8 +594,7 @@ impl Client {
         reply.json().await
     }
 
-    /// Returns the Grammar Checker correction types, with their texts in the given language
-    /// (for example `en`). Needs no login.
+    /// Returns the Grammar Checker correction types, in a language such as `en`. Needs no login.
     ///
     /// # Errors
     ///
@@ -919,20 +893,18 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Uses your own `reqwest` client instead of the default one. Use it to set a proxy, extra
-    /// root certificates (for example a corporate CA: the default client trusts only the Mozilla
-    /// root certificates), or other connection settings. Set the timeouts on your client: this
-    /// builder's [`timeout`](Self::timeout) and [`connect_timeout`](Self::connect_timeout) apply
-    /// to the default client only.
+    /// Uses your own `reqwest` client, for example for a proxy or a corporate CA (the default
+    /// client trusts only the Mozilla roots). Set timeouts on that client:
+    /// [`timeout`](Self::timeout) and [`connect_timeout`](Self::connect_timeout) apply to the
+    /// default client only.
     #[must_use]
     pub fn http_client(mut self, client: reqwest::Client) -> Self {
         self.http_client = Some(client);
         self
     }
 
-    /// The total time limit of each request of the default HTTP client, from connecting to
-    /// reading the whole response. Default: 120 seconds. It also bounds an upload: raise it to
-    /// send large files over a slow connection.
+    /// The time limit of each request of the default HTTP client, from connecting to reading the
+    /// whole response, uploads included. Default: 120 seconds.
     #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
@@ -946,35 +918,31 @@ impl ClientBuilder {
         self
     }
 
-    /// Retries the calls that are safe to repeat when they fail with HTTP 429, HTTP 503 or a
-    /// connection error. See [`RetryPolicy`] for which calls and how. Default: no retries.
+    /// Retries the calls that are safe to repeat; see [`RetryPolicy`]. Default: no retries.
     #[must_use]
     pub fn retry_policy(mut self, policy: RetryPolicy) -> Self {
         self.retry = Some(policy);
         self
     }
 
-    /// Overrides the API base URL. Default: [`DEFAULT_API_BASE_URL`].
-    ///
-    /// The URL must use `https`; `http` is only accepted for `localhost`, `127.0.0.1` and `::1`,
-    /// for local test servers.
+    /// Overrides the API base URL. Default: [`DEFAULT_API_BASE_URL`]. Must be `https`; `http` is
+    /// accepted only for `localhost`, `127.0.0.1` and `::1`.
     #[must_use]
     pub fn api_base_url(mut self, url: impl Into<String>) -> Self {
         self.api_base_url = Some(url.into());
         self
     }
 
-    /// Overrides the identity server base URL, used by [`Client::login`].
-    /// Default: [`DEFAULT_IDENTITY_BASE_URL`]. The same `https` rule as
-    /// [`api_base_url`](Self::api_base_url) applies.
+    /// Overrides the identity server base URL, used by [`Client::login`]. Default:
+    /// [`DEFAULT_IDENTITY_BASE_URL`]. Same `https` rule as [`api_base_url`](Self::api_base_url).
     #[must_use]
     pub fn identity_base_url(mut self, url: impl Into<String>) -> Self {
         self.identity_base_url = Some(url.into());
         self
     }
 
-    /// Adds your application's product token, such as `my-app/2.1`, in front of the SDK's own
-    /// token [`DEFAULT_USER_AGENT`], which is always sent: `my-app/2.1 copyleaks-rust-sdk/2.0.0`.
+    /// Adds your application's product token in front of [`DEFAULT_USER_AGENT`], for example
+    /// `my-app/2.1 copyleaks-rust-sdk/2.0.0`.
     #[must_use]
     pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = Some(user_agent.into());

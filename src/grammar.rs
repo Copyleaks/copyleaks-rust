@@ -46,11 +46,8 @@ setters!(GrammarCheckRequest {
     score: ScoreWeights,
 });
 
-/// The weight of each correction category in the overall score, each from 0.0 to 1.0.
-/// A category without a weight uses the default of 1.0. Used by
-/// [`GrammarCheckRequest::score`](field@GrammarCheckRequest::score) and by the Grammar Checker of
-/// a plagiarism scan,
-/// [`WritingFeedback::score`](field@crate::plagiarism::WritingFeedback::score).
+/// The weight of each correction category in the overall score, from 0.0 to 1.0. A category
+/// without a weight uses 1.0.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -97,10 +94,7 @@ setters!(ScoreWeights {
     word_choice_score_weight: f64,
 });
 
-/// The result of the Grammar Checker. Unknown fields are ignored and missing fields are `None`.
-///
-/// It is also the content of the Grammar Checker report of a plagiarism scan, uploaded by
-/// [`Export::writing_feedback`](field@crate::plagiarism::Export::writing_feedback).
+/// The result of the Grammar Checker.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

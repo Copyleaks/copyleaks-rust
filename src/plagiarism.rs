@@ -1,8 +1,5 @@
 //! Plagiarism Checker: submit files, URLs and images (OCR) for a scan, and manage your scans.
-//!
-//! A submit returns as soon as Copyleaks accepts the scan. Copyleaks then reports the scan result
-//! to the status webhook in [`ScanProperties::webhooks`](field@ScanProperties::webhooks); parse
-//! that payload with [`crate::webhooks`].
+//! Results arrive at the status webhook; parse them with [`crate::webhooks`].
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -13,9 +10,6 @@ use crate::{validate, Result};
 pub use crate::common::Headers;
 
 /// A file to scan, for [`Client::submit_file`](crate::Client::submit_file).
-///
-/// The file is kept as given, raw bytes or base64 text, and the request body is written once
-/// when the request is sent.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -44,9 +38,8 @@ impl FileSubmission {
         }
     }
 
-    /// Creates a submission from the raw file bytes. A `Vec<u8>` or `String` is taken without
-    /// a copy, and the bytes are base64-encoded only when the request is sent. To scan plain
-    /// text, pass the text.
+    /// Creates a submission from the raw file bytes, or plain text. A `Vec<u8>` or `String` is
+    /// taken without a copy and base64-encoded only when sent.
     pub fn from_bytes(
         content: impl Into<Vec<u8>>,
         filename: impl Into<String>,
@@ -85,9 +78,6 @@ impl FileSubmission {
 
 /// An image or scanned document whose text is extracted with OCR and then scanned,
 /// for [`Client::submit_file_ocr`](crate::Client::submit_file_ocr).
-///
-/// The file is kept as given, raw bytes or base64 text, and the request body is written once
-/// when the request is sent.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -121,8 +111,7 @@ impl OcrSubmission {
         }
     }
 
-    /// Creates an OCR submission from the raw file bytes. A `Vec<u8>` is taken without a copy,
-    /// and the bytes are base64-encoded only when the request is sent.
+    /// Creates an OCR submission from the raw file bytes, taking a `Vec<u8>` without a copy.
     pub fn from_bytes(
         content: impl Into<Vec<u8>>,
         filename: impl Into<String>,
@@ -172,12 +161,11 @@ impl OcrSubmission {
 pub struct UrlSubmission {
     /// The URL to scan, for example `https://copyleaks.com`.
     pub url: String,
-    /// The HTTP method Copyleaks uses to fetch the URL: `GET`, `POST` or `PUT`.
-    /// Server default: `GET`.
+    /// The HTTP method to fetch the URL: `GET` (server default), `POST` or `PUT`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verb: Option<String>,
-    /// Headers Copyleaks sends when it fetches the URL, for example a `Cookie` or an
-    /// `Authorization` header. When set, Copyleaks sends no headers of its own.
+    /// Headers Copyleaks sends when it fetches the URL, such as `Cookie` or `Authorization`. When
+    /// set, Copyleaks sends no headers of its own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<Headers>,
     /// The scan configuration.
@@ -243,9 +231,8 @@ pub struct ScanProperties {
     /// How long, in hours, Copyleaks keeps the scan after it completes. From 1 to 2880.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expiration: Option<u32>,
-    /// The time zone of the scan time shown in the PDF report: a case-sensitive IANA time zone
-    /// name, for example `America/New_York`. Server default: the time zone of your country, or
-    /// UTC.
+    /// Time zone of the scan time in the PDF report: a case-sensitive IANA name such as
+    /// `America/New_York`. Server default: your country's time zone, or UTC.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scan_time_zone: Option<String>,
     /// The author of the content.
@@ -275,9 +262,8 @@ pub struct ScanProperties {
     /// PDF report settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf: Option<Pdf>,
-    /// The language of the scan's PDF report: `en`, `es`, `pt`, `fr`, `de` or `it`. Lowercase
-    /// and case-sensitive. It is stored with the scan, so it also applies to a PDF report
-    /// requested later. Use `None` for the server default, `en`.
+    /// The PDF report language, lowercase: `en` (server default), `es`, `pt`, `fr`, `de` or `it`.
+    /// Stored with the scan, so it also applies to a report requested later.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_language: Option<String>,
     /// Plagiarism sensitivity, from 1 (faster) to 5 (slower, finds the smallest matches).
@@ -295,31 +281,25 @@ pub struct ScanProperties {
     /// [`CompletedWebhook::ai_detection_result`](crate::webhooks::CompletedWebhook::ai_detection_result).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_generated_text: Option<AiGeneratedText>,
-    /// Masks sensitive data in the scanned document with `#` characters. Available on plans of
-    /// 2500 pages or more.
+    /// Sensitive data masking. Available on plans of 2500 pages or more.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitive_data_protection: Option<SensitiveDataProtection>,
-    /// Grammar Checker settings: also check grammar, spelling and sentence structure. The scores
-    /// arrive in the completed webhook's
+    /// Grammar Checker settings. The scores arrive in the completed webhook's
     /// [`writing_feedback`](field@crate::webhooks::CompletedWebhook::writing_feedback).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub writing_feedback: Option<WritingFeedback>,
-    /// Gen-AI Overview settings: a summary of the scan's key insights. Export it with
+    /// Gen-AI Overview settings. Export the overview with
     /// [`Export::overview`](field@Export::overview).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overview: Option<Overview>,
-    /// AI Source Match settings: find online sources suspected of containing AI-generated text.
-    /// Server default: off.
+    /// AI Source Match settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_source_match: Option<AiSourceMatch>,
-    /// Internal AI Source Match settings: find matches in the Copyleaks internal database of
-    /// AI-generated text. The matches arrive in
+    /// Internal AI Source Match settings. The matches arrive in
     /// [`Results::internal_ai_data`](field@crate::webhooks::Results::internal_ai_data).
-    /// Server default: off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub internal_ai_source_match: Option<InternalAiSourceMatch>,
-    /// Citation Checker settings: detect and validate the references in the text. The summary
-    /// arrives in the completed webhook's
+    /// Citation Checker settings. The summary arrives in the completed webhook's
     /// [`references_validation`](field@crate::webhooks::CompletedWebhook::references_validation).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<References>,
@@ -329,8 +309,8 @@ pub struct ScanProperties {
 }
 
 impl ScanProperties {
-    /// Creates scan properties with the status webhook URL. Use the `{STATUS}` placeholder,
-    /// for example `https://your.server/webhook/{STATUS}`.
+    /// Creates scan properties with the status webhook URL, such as
+    /// `https://your.server/webhook/{STATUS}`.
     pub fn new(status_webhook: impl Into<String>) -> Self {
         Self {
             webhooks: SubmitWebhooks::new(status_webhook),
@@ -345,7 +325,7 @@ impl ScanProperties {
         self
     }
 
-    /// Sets the `expiration` field, in hours (1 to 2880).
+    /// Sets the `expiration` field.
     #[must_use]
     pub fn expiration(mut self, hours: u32) -> Self {
         self.expiration = Some(hours);
@@ -956,14 +936,13 @@ pub struct Pdf {
     /// Align the report text from right to left.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rtl: Option<bool>,
-    /// The report version. Deprecated by the API in favor of
-    /// [`Pdf::report_version`](field@Pdf::report_version), which overrides it.
+    /// The report version, deprecated by the API in favor of
+    /// [`Pdf::report_version`](field@Pdf::report_version).
     #[deprecated(note = "deprecated by the API: use `Pdf::report_version` instead")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<PdfVersion>,
-    /// The report version: `v1`, `v2`, `v3` or `latest`. Lowercase and case-sensitive. Overrides
-    /// [`Pdf::version`](field@Pdf::version). When neither is set, accounts created before
-    /// 2025-05-15 get `v1` and newer accounts get `latest`.
+    /// The report version, lowercase: `v1`, `v2`, `v3` or `latest`. Overrides `version`. When
+    /// neither is set, accounts created before 2025-05-15 get `v1` and newer ones `latest`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub report_version: Option<String>,
     /// The report colors.
@@ -1036,9 +1015,8 @@ pub struct AiGeneratedText {
     /// Detect whether the text was written by AI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detect: Option<bool>,
-    /// How hard to look for edited AI text, from 1 to 3. Server default: 2. `1` finds text
-    /// copied from an LLM without edits, `2` also finds text with minor edits, and `3` also
-    /// finds heavily edited text.
+    /// How hard to look for edited AI text, from 1 to 3; see
+    /// [`AiTextDetectionRequest::sensitivity`](field@crate::ai_text::AiTextDetectionRequest::sensitivity).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitivity: Option<u8>,
     /// AI Logic: explain why the text was detected as AI.
@@ -1115,8 +1093,7 @@ pub struct WritingFeedback {
     /// Check grammar, spelling and sentence structure. Server default: `false`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable: Option<bool>,
-    /// The weight of each correction category in the overall writing score, each from 0.0 to
-    /// 1.0. A category without a weight uses 1.0.
+    /// The weight of each correction category in the overall writing score.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<ScoreWeights>,
 }
@@ -1173,8 +1150,7 @@ setters!(AiSourceMatch { enable: bool });
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
 pub struct InternalAiSourceMatch {
-    /// Find matches in the Copyleaks internal database of AI-generated text. Server default:
-    /// `false`.
+    /// Find matches in the Copyleaks internal database of AI-generated text. Default: `false`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable: Option<bool>,
 }
@@ -1213,10 +1189,8 @@ impl CustomMetadata {
 }
 
 /// An export of scan artifacts to your servers, for [`Client::export`](crate::Client::export).
-/// When the export is done, Copyleaks calls the completion webhook with an
-/// [`ExportCompletedWebhook`](crate::webhooks::ExportCompletedWebhook).
-///
-/// The uploaded files are described by the types in [`crate::exports`].
+/// When it is done, Copyleaks posts an
+/// [`ExportCompletedWebhook`](crate::webhooks::ExportCompletedWebhook) to the completion webhook.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -1448,8 +1422,7 @@ where
         .collect())
 }
 
-/// Deletes scans, for [`Client::delete`](crate::Client::delete). Only completed scans can be
-/// deleted. The deletion runs in the background.
+/// Completed scans to delete, for [`Client::delete`](crate::Client::delete).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

@@ -108,7 +108,7 @@ impl TextModerationLabel {
     }
 }
 
-/// The result of Text Moderation. Missing fields are `None`.
+/// The result of Text Moderation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

@@ -1,7 +1,6 @@
-//! Image Plagiarism Detector: search the web for copies of an image, full or modified.
-//!
-//! [`Client::image_plagiarism_detection`](crate::Client::image_plagiarism_detection) uploads the
-//! image as `multipart/form-data` and returns the matches in one synchronous call.
+//! Image Plagiarism Detector: search the web for copies of an image, full or modified, with one
+//! synchronous call:
+//! [`Client::image_plagiarism_detection`](crate::Client::image_plagiarism_detection).
 //!
 //! ```no_run
 //! # async fn run(client: copyleaks::Client, token: copyleaks::AuthToken) -> Result<(), Box<dyn std::error::Error>> {
@@ -29,17 +28,15 @@ const EXTENSIONS: [&str; 7] = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
 const MAX_IMAGE_BYTES: usize = 20 << 20;
 
 /// An image to search for, for
-/// [`Client::image_plagiarism_detection`](crate::Client::image_plagiarism_detection).
-///
-/// The image must be smaller than 20 MB and at most 75 megapixels, in JPEG, PNG, GIF, BMP, WebP
-/// or ICO format.
+/// [`Client::image_plagiarism_detection`](crate::Client::image_plagiarism_detection). Under
+/// 20 MB and at most 75 megapixels.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ImagePlagiarismRequest {
     /// The image file, sent as the `image` part.
     image: Bytes,
-    /// The file name with its extension: `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp` or
-    /// `.ico`. At most 255 characters.
+    /// File name with extension (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.ico`), at
+    /// most 255 characters.
     pub filename: String,
     /// Sandbox mode: free mock results, for integration testing.
     pub sandbox: Option<bool>,
@@ -49,8 +46,7 @@ pub struct ImagePlagiarismRequest {
 }
 
 impl ImagePlagiarismRequest {
-    /// Creates a request from the raw image bytes and the file name. A `Vec<u8>` is taken
-    /// without a copy.
+    /// Creates a request from the raw image bytes, taking a `Vec<u8>` without a copy.
     pub fn new(image: impl Into<Vec<u8>>, filename: impl Into<String>) -> Self {
         Self {
             image: Bytes::from(image.into()),
@@ -103,8 +99,7 @@ setters!(ImagePlagiarismRequest {
     developer_payload: String,
 });
 
-/// The result of the Image Plagiarism Detector. Missing fields are `None`, and a missing or
-/// `null` list is empty.
+/// The result of the Image Plagiarism Detector.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

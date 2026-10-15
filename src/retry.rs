@@ -6,33 +6,15 @@ use std::time::{Duration, SystemTime};
 
 use reqwest::header::{HeaderMap, RETRY_AFTER};
 
-/// How the client retries calls that failed with HTTP 429, HTTP 503 or a connection error.
-/// Set it with [`ClientBuilder::retry_policy`](crate::ClientBuilder::retry_policy). Without a
-/// policy, the client never retries.
+/// Retries of calls that fail with HTTP 429, HTTP 503 or a connection error, set with
+/// [`ClientBuilder::retry_policy`](crate::ClientBuilder::retry_policy). Without it, nothing is
+/// retried.
 ///
-/// Only calls that are safe to repeat are retried:
-///
-/// - the `GET` calls, which only read: credit balances, usage history, the reference data
-///   lists and the repository info;
-/// - the `PUT` submits, whose scan id makes a repeat harmless: [`Client::submit_file`],
-///   [`Client::submit_file_ocr`], [`Client::submit_url`] and
-///   [`Client::submit_ai_image_detection`]. If an earlier attempt reached the server after all,
-///   the repeat fails with HTTP 409 (the scan id is already used).
-///
-/// The `POST` and `PATCH` calls are never retried: the checks that spend credits, AI Video
-/// Detection, login, export, start, delete and resend webhook.
-///
-/// A retry waits for the server's `Retry-After` header when it sends one. When the server asks
-/// to wait longer than [`max_retry_after`](field@RetryPolicy::max_retry_after), the call fails
-/// at once with the error, which holds the wait in its `retry_after` field. Without the header,
-/// the wait doubles after each attempt, from
-/// [`initial_backoff`](field@RetryPolicy::initial_backoff) up to
-/// [`max_backoff`](field@RetryPolicy::max_backoff), with random jitter.
-///
-/// [`Client::submit_file`]: crate::Client::submit_file
-/// [`Client::submit_file_ocr`]: crate::Client::submit_file_ocr
-/// [`Client::submit_url`]: crate::Client::submit_url
-/// [`Client::submit_ai_image_detection`]: crate::Client::submit_ai_image_detection
+/// Only the `GET` calls and the `PUT` submits (Plagiarism Checker, AI Image Detection by URL) are
+/// retried; a submit whose earlier attempt reached the server fails with HTTP 409. `POST` and
+/// `PATCH` calls (credit-spending checks, AI Video Detection, login, export, start, delete,
+/// resend webhook) are never retried. The wait is the server's `Retry-After`, else a doubling
+/// backoff with jitter.
 ///
 /// ```
 /// use std::time::Duration;
@@ -50,14 +32,12 @@ use reqwest::header::{HeaderMap, RETRY_AFTER};
 pub struct RetryPolicy {
     /// How many times a call is retried after the first attempt. Default: 3.
     pub max_retries: u32,
-    /// The wait before the first retry when the server does not send `Retry-After`.
-    /// Default: 1 second.
+    /// The wait before the first retry without `Retry-After`. Default: 1 second.
     pub initial_backoff: Duration,
-    /// The longest wait between two attempts when the server does not send `Retry-After`.
-    /// Default: 30 seconds.
+    /// The longest wait between two attempts without `Retry-After`. Default: 30 seconds.
     pub max_backoff: Duration,
-    /// The longest `Retry-After` the client waits for. A longer one fails the call at once.
-    /// Default: 60 seconds.
+    /// The longest `Retry-After` the client waits for; a longer one fails the call at once, with
+    /// the wait in the error's `retry_after`. Default: 60 seconds.
     pub max_retry_after: Duration,
 }
 

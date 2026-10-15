@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 /// A list of HTTP headers, each a `(name, value)` pair. Serialized as `[["name", "value"], ...]`.
 pub type Headers = Vec<(String, String)>;
 
-/// General information about a scanned document, returned by AI Text Detection,
-/// AI Image Detection, Grammar Checker and Text Moderation. Missing fields are `None`.
+/// General information about a scanned document, in the results of AI Text Detection, AI Image
+/// Detection, Grammar Checker and Text Moderation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

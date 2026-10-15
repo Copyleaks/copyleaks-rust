@@ -1,7 +1,5 @@
-//! AI Text Detection: tell human-written text from AI-generated text.
-//!
-//! The same [`AiTextDetectionResponse`] is the decoded `additionalData` of the
-//! `suspected-ai-text` alert in the plagiarism scan completed webhook; see
+//! AI Text Detection: tell human-written text from AI-generated text. [`AiTextDetectionResponse`]
+//! is also the AI result of a plagiarism scan; see
 //! [`CompletedWebhook::ai_detection_result`](crate::webhooks::CompletedWebhook::ai_detection_result).
 
 use serde::{Deserialize, Serialize};
@@ -18,16 +16,14 @@ pub struct AiTextDetectionRequest {
     /// Sandbox mode: free mock results, for integration testing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<bool>,
-    /// The ISO 639-1 language code of the text, for example `en`.
-    /// Detected automatically when not set.
+    /// The ISO 639-1 language code, for example `en`. Detected automatically when not set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     /// Return AI Logic explanations in [`AiTextDetectionResponse::explain`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explain: Option<bool>,
-    /// How hard to look for edited AI text, from 1 to 3. The server default is 2.
-    /// `1` finds text copied from an LLM without edits, `2` also finds text with minor edits,
-    /// and `3` also finds heavily edited text.
+    /// How hard to look for edited AI text: `1` finds unedited LLM text, `2` (server default)
+    /// also minor edits, `3` also heavy edits.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitivity: Option<u8>,
 }
@@ -57,11 +53,7 @@ setters!(AiTextDetectionRequest {
     sensitivity: u8,
 });
 
-/// The result of AI Text Detection. Unknown fields are ignored, missing fields are `None`,
-/// and a missing or `null` list is empty.
-///
-/// It is also the content of the AI Text Detection report of a plagiarism scan, uploaded by
-/// [`Export::ai_detection`](field@crate::plagiarism::Export::ai_detection).
+/// The result of AI Text Detection.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
