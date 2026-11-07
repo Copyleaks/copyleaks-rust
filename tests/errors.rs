@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use common::{client, token, TOKEN};
 use copyleaks::plagiarism::{FileSubmission, ScanProperties};
-use copyleaks::{AuthToken, Client, Error};
+use copyleaks::{ApiErrorBody, AuthToken, Client, Error};
 use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -155,6 +155,63 @@ async fn status_of_other_errors() {
     assert_eq!(credits_with_status(402, "").await.status(), Some(402));
     assert_eq!(credits_with_status(402, "").await.retry_after(), None);
     assert_eq!(Error::TokenExpired.status(), None);
+}
+
+#[tokio::test]
+async fn api_error_body_parses_the_error_object_of_every_status_variant() {
+    let body = r#"{"error":{"type":"payment_error","id":"insufficient_credits","code":"7",
+        "message":"Not enough credits.","details":[{"param":"credits","message":"0 left"}]}}"#;
+    for status in [400, 401, 402, 429, 503] {
+        let error = credits_with_status(status, body).await;
+        let parsed = error.api_error_body().expect("the error object");
+        assert_eq!(
+            parsed.error_type.as_deref(),
+            Some(ApiErrorBody::PAYMENT_ERROR),
+            "{status}"
+        );
+        assert_eq!(parsed.id.as_deref(), Some("insufficient_credits"));
+        assert_eq!(parsed.code, Some(7));
+        assert_eq!(parsed.message.as_deref(), Some("Not enough credits."));
+        assert_eq!(parsed.url, None);
+        assert_eq!(parsed.details.len(), 1);
+        assert_eq!(parsed.details[0].param.as_deref(), Some("credits"));
+        assert_eq!(parsed.details[0].message.as_deref(), Some("0 left"));
+        // The variant, the stored body and the message stay as they were.
+        assert_eq!(error.status(), Some(status));
+        assert!(
+            error.to_string().contains("insufficient_credits"),
+            "{error}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn api_error_body_is_none_without_an_error_object() {
+    assert_eq!(
+        credits_with_status(401, "Authorization has been denied")
+            .await
+            .api_error_body(),
+        None
+    );
+    assert_eq!(
+        credits_with_status(500, r#"{"message":"the server explains"}"#)
+            .await
+            .api_error_body(),
+        None
+    );
+    assert_eq!(Error::TokenExpired.api_error_body(), None);
+    assert_eq!(
+        Error::Validation("bad scan id".into()).api_error_body(),
+        None
+    );
+}
+
+#[test]
+fn api_error_body_type_constants() {
+    assert_eq!(ApiErrorBody::INVALID_REQUEST_ERROR, "invalid_request_error");
+    assert_eq!(ApiErrorBody::AUTHENTICATION_ERROR, "authentication_error");
+    assert_eq!(ApiErrorBody::PAYMENT_ERROR, "payment_error");
+    assert_eq!(ApiErrorBody::API_ERROR, "api_error");
 }
 
 #[tokio::test]

@@ -55,7 +55,7 @@ pub use client::{
     Client, ClientBuilder, DEFAULT_API_BASE_URL, DEFAULT_IDENTITY_BASE_URL, DEFAULT_USER_AGENT,
 };
 pub use common::{Headers, ResultWebhook, ScannedDocument};
-pub use error::{Error, Result};
+pub use error::{ApiErrorBody, ApiErrorDetail, Error, Result};
 /// The `reqwest` crate (0.12), for
 /// [`ClientBuilder::http_client`](method@ClientBuilder::http_client). It is part of the public
 /// API: a new major version of reqwest means a new major version here.

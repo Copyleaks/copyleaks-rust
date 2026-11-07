@@ -419,6 +419,24 @@ response body, where it usually explains the error; their messages show the firs
 The SDK never panics on API input, never prints, and never puts the token or the API key in an
 error message.
 
+`Error::api_error_body()` parses that body as the
+[error object](https://docs.copyleaks.com/using-the-apis/api-errors/) of the API: its type, id,
+code, message, url and details. It returns `None` for the other variants and for a body that is
+not the error object, and a field the server did not send is `None` (and `details` is empty):
+
+```rust
+use copyleaks::ApiErrorBody;
+
+if let Some(body) = error.api_error_body() {
+    if body.error_type.as_deref() == Some(ApiErrorBody::PAYMENT_ERROR) {
+        eprintln!("payment error {:?}: {:?}", body.code, body.message);
+    }
+    for detail in &body.details {
+        eprintln!("{:?}: {:?}", detail.param, detail.message);
+    }
+}
+```
+
 ## Examples
 
 Runnable examples are in [`examples/`](examples). They read your credentials from the

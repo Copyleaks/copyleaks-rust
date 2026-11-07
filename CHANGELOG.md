@@ -4,6 +4,19 @@ All notable changes to this crate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the crate follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `Error::api_error_body` parses the response body of an HTTP error variant (`Api`,
+  `Unauthorized`, `RateLimited`, `UnderMaintenance`) as the
+  [error object](https://docs.copyleaks.com/using-the-apis/api-errors/) of the API: an
+  `ApiErrorBody` with `error_type`, `id`, `code`, `message`, `url` and `details` (a list of
+  `ApiErrorDetail` with `param` and `message`). It returns `None` for the other variants and for a
+  body that is not the error object. The variants, their fields and their messages do not change.
+- The error type constants `ApiErrorBody::INVALID_REQUEST_ERROR`, `AUTHENTICATION_ERROR`,
+  `PAYMENT_ERROR` and `API_ERROR`.
+
 ## [2.0.0] - 2026-10-14
 
 A major release. Request, option and response types are now `#[non_exhaustive]`, so that later
