@@ -289,6 +289,19 @@ mod snippets {
         Ok(())
     }
 
+    fn api_error_body(error: copyleaks::Error) {
+        use copyleaks::ApiErrorBody;
+
+        if let Some(body) = error.api_error_body() {
+            if body.error_type.as_deref() == Some(ApiErrorBody::PAYMENT_ERROR) {
+                eprintln!("payment error {:?}: {:?}", body.code, body.message);
+            }
+            for detail in &body.details {
+                eprintln!("{:?}: {:?}", detail.param, detail.message);
+            }
+        }
+    }
+
     fn configuration() -> Result {
         use std::time::Duration;
         use copyleaks::{Client, RetryPolicy};
