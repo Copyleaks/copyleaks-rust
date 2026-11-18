@@ -942,7 +942,7 @@ impl ClientBuilder {
     }
 
     /// Adds your application's product token in front of [`DEFAULT_USER_AGENT`], for example
-    /// `my-app/2.1 copyleaks-rust-sdk/2.0.0`.
+    /// `my-app/2.1 copyleaks-rust-sdk/2.1.0`.
     #[must_use]
     pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = Some(user_agent.into());

@@ -1,6 +1,6 @@
 [package]
 name = "copyleaks"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Copyleaks is the integrity layer for your tech stack that helps organizations and individuals understand what's human-made and original, AI-generated, or manipulated across text, image, audio and video."
